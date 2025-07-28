@@ -26,11 +26,17 @@ public class FirebaseConfig {
         FirebaseOptions options = FirebaseOptions
                 .builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                .setStorageBucket("zerowaste-ccae3.firebasestorage.app")
                 .build();
+
+        //추후 환경 변수 설정 등 필요해보임. juan3355
 
         if(FirebaseApp.getApps().isEmpty()) {
             FirebaseApp.initializeApp(options);
             log.info("Firebase app has been initialized");
         }
+
     }
+
+
 }
