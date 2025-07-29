@@ -1,0 +1,10 @@
+^C:\USERS\PMINI\ONEDRIVE\바탕 화면\ZEROWASTE\FRONTEND\BUILD\WINDOWS\X64\CMAKEFILES\0E6E581F613B2BC58420CF75E2B04CB3\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" "-SC:/Users/pmini/OneDrive/바탕 화면/ZeroWaste/frontend/windows" "-BC:/Users/pmini/OneDrive/바탕 화면/ZeroWaste/frontend/build/windows/x64" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/pmini/OneDrive/바탕 화면/ZeroWaste/frontend/build/windows/x64/frontend.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
