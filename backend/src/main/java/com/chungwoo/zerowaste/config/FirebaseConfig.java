@@ -16,6 +16,8 @@ public class FirebaseConfig {
     @PostConstruct
     public void init() throws IOException {
 
+        log.info("GOOGLE_APPLICATION_CREDENTIALS = {}", System.getenv("GOOGLE_APPLICATION_CREDENTIALS"));
+
         FirebaseOptions options = FirebaseOptions
                 .builder()
                 .setCredentials(GoogleCredentials.getApplicationDefault())//getApplicationDefault로 설정한 환경변수 로드

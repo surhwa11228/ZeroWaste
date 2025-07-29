@@ -1,6 +1,6 @@
 package com.chungwoo.zerowaste.report.controller;
 
-import com.chungwoo.zerowaste.report.reportdto.ReportRequestDto;
+import com.chungwoo.zerowaste.report.dto.ReportRequestDto;
 import com.chungwoo.zerowaste.report.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

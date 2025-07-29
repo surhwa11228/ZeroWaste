@@ -1,4 +1,4 @@
-package com.chungwoo.zerowaste.report.reportdto;
+package com.chungwoo.zerowaste.report.dto;
 
 import lombok.Data;
 

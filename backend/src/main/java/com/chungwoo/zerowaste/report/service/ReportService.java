@@ -1,11 +1,12 @@
 package com.chungwoo.zerowaste.report.service;
 
-import com.chungwoo.zerowaste.report.reportdto.ReportRequestDto;
+import com.chungwoo.zerowaste.report.dto.ReportRequestDto;
+import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
 import com.chungwoo.zerowaste.utils.GeoUtils;
+import com.chungwoo.zerowaste.utils.StorageUploadUtils;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.GeoPoint;
 import com.google.firebase.cloud.FirestoreClient;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,14 +16,13 @@ import java.util.Map;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
+
 public class ReportService {
 
-    private final FirebaseStorageUploadService firebaseStorageUploadService;
 
     public void submitReport(MultipartFile image, ReportRequestDto reportDto, String userId){
         try{
-            String imageUrl = firebaseStorageUploadService.imageUpload(image);
+            ImageUploadResult imageUploadResult = StorageUploadUtils.imageUpload(StorageUploadUtils.REPORT, image);
             Firestore db = FirestoreClient.getFirestore();
 
             GeoPoint location;
@@ -44,7 +44,8 @@ public class ReportService {
             report.put("location",location);
             report.put("address",reportDto.getAddress());
             report.put("description",reportDto.getDescription());
-            report.put("imageUrl", imageUrl);
+            report.put("imageUrl", imageUploadResult.getFileName());
+            report.put("imageName", imageUploadResult.getFileName());
             report.put("wasteCategory",reportDto.getWasteCategory());
             report.put("reportedAt", reportDto.getReportedAt());
 
