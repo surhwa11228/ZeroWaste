@@ -1,27 +1,85 @@
-# Compiled class file
+# -------------------------------
+# Java 관련
+# -------------------------------
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
 *.ear
+
+# -------------------------------
+# 로그 및 오류 파일
+# -------------------------------
+*.log
+hs_err_pid*
+replay_pid*
+
+# -------------------------------
+# BlueJ
+# -------------------------------
+*.ctxt
+
+# -------------------------------
+# Mobile Tools for Java (J2ME)
+# -------------------------------
+.mtj.tmp/
+
+# -------------------------------
+# 아카이브/패키징 파일
+# -------------------------------
 *.zip
 *.tar.gz
 *.rar
 
-# Firebase Service Account Key
+# -------------------------------
+# Firebase 비밀 키
+# -------------------------------
 serviceAccount.json
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+# -------------------------------
+# 공통 임시 파일 및 설정
+# -------------------------------
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# -------------------------------
+# IntelliJ / Android Studio
+# -------------------------------
+*.iml
+*.ipr
+*.iws
+.idea/
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# -------------------------------
+# VS Code (필요시 주석 해제)
+# -------------------------------
+#.vscode/
+
+# -------------------------------
+# Flutter / Dart / Pub 관련
+# -------------------------------
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# -------------------------------
+# 앱 심볼 및 난독화 파일
+# -------------------------------
+app.*.symbols
+app.*.map.json
