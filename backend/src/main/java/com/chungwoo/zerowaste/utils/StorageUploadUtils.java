@@ -18,6 +18,7 @@ public class StorageUploadUtils {
     public static final String REPORT = "reportImage";
     public static final String BOARD = "boardImage";
     public static final String PROFILE = "profileImage";
+    private static final String JPEG = "image/jpeg";
 
     public static ImageUploadResult imageUpload(String folderName, MultipartFile image) throws IOException{
         byte[] convertedImage = ImageUtils.convertToJPG(image);
@@ -26,7 +27,7 @@ public class StorageUploadUtils {
         String fullPath = folderName +"/"+ imageName;
 
         Bucket bucket = StorageClient.getInstance().bucket();
-        Blob blob = bucket.create(fullPath, convertedImage, "image/jpeg");
+        Blob blob = bucket.create(fullPath, convertedImage, JPEG);
         String url = buildDownloadUrl(blob);
 
         return new ImageUploadResult(blob.getName(), url, blob);
