@@ -1,60 +1,105 @@
 package com.chungwoo.zerowaste.report.service;
 
-import com.chungwoo.zerowaste.report.dto.ReportRequestDto;
-import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
+import com.chungwoo.zerowaste.report.dto.ReportSearchRequest;
+import com.chungwoo.zerowaste.report.dto.ReportSearchResponse;
+import com.chungwoo.zerowaste.report.dto.ReportSubmissionRequest;
+import com.chungwoo.zerowaste.upload.dto.ImageUploadResponse;
 import com.chungwoo.zerowaste.utils.GeoUtils;
 import com.chungwoo.zerowaste.utils.StorageUploadUtils;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.GeoPoint;
+import com.google.api.core.ApiFuture;
+import com.google.cloud.Timestamp;
+import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @Service
-
 public class ReportService {
 
 
-    public void submitReport(MultipartFile image, ReportRequestDto reportDto, String userId){
-        try{
-            ImageUploadResult imageUploadResult = StorageUploadUtils.imageUpload(StorageUploadUtils.REPORT, image);
-            Firestore db = FirestoreClient.getFirestore();
+    public void submitReport(MultipartFile image, ReportSubmissionRequest reportSubmissionRequest, String userId) throws IOException {
+        ImageUploadResponse imageUploadResponse =
+                StorageUploadUtils.imageUpload(StorageUploadUtils.REPORT, image);
 
-            GeoPoint location;
-            //gps 위치와 지도선택 위치 간의 거리(오차) 계산
-            double distance = GeoUtils
-                    .haversine(reportDto.getGpsLatitude(), reportDto.getGpsLongitude(),
-                    reportDto.getSelectedLat(),
-                    reportDto.getSelectedLng());
-            //오차가 40미터 이내일 경우 선택한 위치 반영, 아닐경우 gps 위치 반영
-            if(distance < 40){
-                location = new GeoPoint(reportDto.getSelectedLat(), reportDto.getSelectedLng());
-            }
-            else{
-                location = new GeoPoint(reportDto.getGpsLatitude(), reportDto.getGpsLatitude());
-            }
+        Firestore db = FirestoreClient.getFirestore();
 
-            Map<String,Object> report = new HashMap<>();
-            report.put("userId", userId);
-            report.put("location",location);
-            report.put("address",reportDto.getAddress());
-            report.put("description",reportDto.getDescription());
-            report.put("imageUrl", imageUploadResult.getFileName());
-            report.put("imageName", imageUploadResult.getFileName());
-            report.put("wasteCategory",reportDto.getWasteCategory());
-            report.put("reportedAt", reportDto.getReportedAt());
+        GeoPoint location = GeoUtils.determineTrustedLocation(
+                reportSubmissionRequest.getGpsLatitude(),
+                reportSubmissionRequest.getGpsLongitude(),
+                reportSubmissionRequest.getSelectedLat(),
+                reportSubmissionRequest.getSelectedLng()
+        );
 
-            db.collection("reports").add(report);
+        Map<String,Object> report = new HashMap<>();
+        report.put("userId", userId);
+        report.put("location",location);
+        report.put("address", reportSubmissionRequest.getAddress());
+        report.put("description", reportSubmissionRequest.getDescription());
+        report.put("imageUrl", imageUploadResponse.getFileName());
+        report.put("imageName", imageUploadResponse.getFileName());
+        report.put("wasteCategory", reportSubmissionRequest.getWasteCategory());
+        report.put("reportedAt", reportSubmissionRequest.getReportedAt());
 
-        }catch (Exception e){
-            log.error("Error while uploading report");
-            throw new RuntimeException("Error while uploading report");
-        }
+        db.collection("reports").add(report);
+        log.info("Report submitted");
+    }
+
+    public List<ReportSearchResponse> searchReports(ReportSearchRequest reportSearchRequest) throws ExecutionException, InterruptedException {
+        Firestore db = FirestoreClient.getFirestore();
+
+        Timestamp threeDaysAgo = Timestamp.of(
+                Date.from(Instant.now().minus(Duration.ofDays(3)))
+        );
+
+        CollectionReference reportsRef = db.collection("reports");
+
+        Query query = reportsRef.whereGreaterThan("reportedAt", threeDaysAgo);
+
+        GeoUtils.BoundingBox boundingBox = GeoUtils.calculateBoundingBox(
+                reportSearchRequest.getCenterLat(),
+                reportSearchRequest.getCenterLng(),
+                reportSearchRequest.getRadius()
+        );
+
+        query = query
+                .whereGreaterThanOrEqualTo("location.latitude", boundingBox.minLat())
+                .whereLessThanOrEqualTo("location.latitude", boundingBox.maxLat())
+                .whereGreaterThanOrEqualTo("location.longitude", boundingBox.minLng())
+                .whereLessThanOrEqualTo("location.longitude", boundingBox.maxLng())
+                .limit(50);
+
+        ApiFuture<QuerySnapshot> querySnapshot = query.get();
+        List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
+
+        return documents.stream()
+                .map(document -> {
+                    Double latitude = document.getDouble("location.latitude");
+                    Double longitude = document.getDouble("location.longitude");
+                    String wasteCategory = document.getString("wasteCategory");
+
+                    if (latitude == null || longitude == null || wasteCategory == null) {
+                        log.warn("위치 정보 누락 docId: {}", document.getId());
+                        return null;
+                    }
+
+                    return new ReportSearchResponse(
+                            document.getId(),
+                            latitude,
+                            longitude,
+                            wasteCategory
+                    );
+                })
+                .filter(Objects::nonNull) // null인 객체 제외
+                .toList();
+
     }
 
 }

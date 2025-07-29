@@ -2,10 +2,10 @@ package com.chungwoo.zerowaste.report.dto;
 
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.util.Date;
 
 @Data
-public class ReportRequestDto {
+public class ReportSubmissionRequest {
     private double gpsLatitude;
     private double gpsLongitude;
     private String address;
@@ -13,5 +13,5 @@ public class ReportRequestDto {
     private double selectedLng;
     private String wasteCategory;
     private String description;
-    private LocalDateTime reportedAt;
+    private Date reportedAt;
 }

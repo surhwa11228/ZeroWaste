@@ -1,6 +1,6 @@
 package com.chungwoo.zerowaste.utils;
 
-import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
+import com.chungwoo.zerowaste.upload.dto.ImageUploadResponse;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Bucket;
 import com.google.firebase.cloud.StorageClient;
@@ -20,7 +20,7 @@ public class StorageUploadUtils {
     public static final String PROFILE = "profileImage";
     private static final String JPEG = "image/jpeg";
 
-    public static ImageUploadResult imageUpload(String folderName, MultipartFile image) throws IOException{
+    public static ImageUploadResponse imageUpload(String folderName, MultipartFile image) throws IOException{
         byte[] convertedImage = ImageUtils.convertToJPG(image);
 
         String imageName = UUID.randomUUID() + ".jpg";
@@ -30,7 +30,7 @@ public class StorageUploadUtils {
         Blob blob = bucket.create(fullPath, convertedImage, JPEG);
         String url = buildDownloadUrl(blob);
 
-        return new ImageUploadResult(blob.getName(), url, blob);
+        return new ImageUploadResponse(blob.getName(), url, blob);
     }
 
     private static String buildDownloadUrl(Blob blob){
