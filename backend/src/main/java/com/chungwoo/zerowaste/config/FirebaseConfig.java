@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 @Slf4j
 @Configuration
@@ -16,20 +15,12 @@ public class FirebaseConfig {
 
     @PostConstruct
     public void init() throws IOException {
-        InputStream serviceAccount =
-                getClass().getClassLoader().getResourceAsStream("firebase/serviceAccount.json");//
-
-        if (serviceAccount == null) {
-            throw new IllegalStateException("Firebase serviceAccount.json 파일을 찾을 수 없습니다.");
-        }
 
         FirebaseOptions options = FirebaseOptions
                 .builder()
-                .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                .setStorageBucket("zerowaste-ccae3.firebasestorage.app")
+                .setCredentials(GoogleCredentials.getApplicationDefault())//getApplicationDefault로 설정한 환경변수 로드
+                .setStorageBucket("zerowaste-ccae3.firebasestorage.app")//storage bucket 초기화
                 .build();
-
-        //추후 환경 변수 설정 등 필요해보임. juan3355
 
         if(FirebaseApp.getApps().isEmpty()) {
             FirebaseApp.initializeApp(options);

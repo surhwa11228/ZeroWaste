@@ -1,7 +1,8 @@
 package com.chungwoo.zerowaste.report.service;
 
 import com.chungwoo.zerowaste.utils.ImageUtils;
-import com.google.cloud.storage.Bucket;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.storage.*;
 import com.google.firebase.cloud.StorageClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,11 +25,15 @@ public class FirebaseStorageUploadService {
 
 
         Bucket bucket = StorageClient.getInstance().bucket();
+        Storage storage = StorageOptions.newBuilder().setCredentials(GoogleCredentials.getApplicationDefault()).build().getService();
         String fullPath = folderName + imageName;
         String encodedPath = URLEncoder.encode(fullPath, StandardCharsets.UTF_8);
         String url = "https://firebasestorage.googleapis.com/v0/b/" +
                 bucket.getName() + "/o/" +
                 encodedPath + "?alt=media";
+
+        BlobId blobId = BlobId.of(bucket.getName(), fullPath);
+
         //url 형식에 다소 문제 있음 juan3355
 
         bucket.create(fullPath, convertedImage, "image/jpeg");
