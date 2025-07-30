@@ -1,8 +1,8 @@
-package com.chungwoo.zerowaste.Controller;
+package com.chungwoo.zerowaste.user.controller;
 
-import com.chungwoo.zerowaste.Model.UserDto;
-import com.chungwoo.zerowaste.Model.UserRegistrationRequest;
-import com.chungwoo.zerowaste.Service.UserService;
+import com.chungwoo.zerowaste.user.dto.UserDto;
+import com.chungwoo.zerowaste.user.dto.UserRegistrationRequest;
+import com.chungwoo.zerowaste.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

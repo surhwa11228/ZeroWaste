@@ -1,11 +1,10 @@
-package com.chungwoo.zerowaste.Service;
+package com.chungwoo.zerowaste.user.service;
 
-import com.chungwoo.zerowaste.Model.UserDto;
-import com.chungwoo.zerowaste.Model.UserRegistrationRequest;
+import com.chungwoo.zerowaste.user.dto.UserDto;
+import com.chungwoo.zerowaste.user.dto.UserRegistrationRequest;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;

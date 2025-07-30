@@ -1,4 +1,4 @@
-package com.chungwoo.zerowaste.Model;
+package com.chungwoo.zerowaste.user.dto;
 
 import lombok.Getter;
 import lombok.Setter;

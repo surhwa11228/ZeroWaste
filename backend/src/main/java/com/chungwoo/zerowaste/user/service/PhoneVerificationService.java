@@ -1,6 +1,6 @@
-package com.chungwoo.zerowaste.Service;
+package com.chungwoo.zerowaste.user.service;
 
-import com.chungwoo.zerowaste.Model.PhoneVerificationDto;
+import com.chungwoo.zerowaste.user.dto.PhoneVerificationDto;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
@@ -10,7 +10,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
 
 @Service
 public class PhoneVerificationService {

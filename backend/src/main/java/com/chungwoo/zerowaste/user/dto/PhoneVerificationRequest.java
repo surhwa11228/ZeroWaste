@@ -1,4 +1,4 @@
-package com.chungwoo.zerowaste.Model;
+package com.chungwoo.zerowaste.user.dto;
 
 public class PhoneVerificationRequest {
     private String phoneNumber;
