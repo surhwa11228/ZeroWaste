@@ -98,7 +98,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: _password,
                 decoration: InputDecoration(labelText: '비밀번호'),
                 obscureText: true,
-                validator: (v) => v!.length < 4 ? '비밀번호는 4자 이상' : null,
+                validator: (v) => v!.length < 8 ? '비밀번호는 8자 이상 입력하세요' : null,
               ),
               TextFormField(
                 controller: _name,

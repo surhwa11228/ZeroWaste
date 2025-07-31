@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'screens/auth/register_screen.dart';
+import 'package:frontend/screens/auth/login_screen.dart';
+import 'screens/auth/login_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,7 +14,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'ZeroWaste',
       theme: ThemeData(primarySwatch: Colors.green),
-      home: const RegisterScreen(),
+      home: const LoginScreen(),
     );
   }
 }
