@@ -44,7 +44,7 @@ class HomeScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.pushNamed(context, '/report/form');
                     },
-                    child: const Text('📸 제보 등록'),
+                    child: const Text('📸 제보하기'),
                   ),
                   ElevatedButton(
                     onPressed: () {
