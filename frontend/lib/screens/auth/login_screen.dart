@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('로그인 성공!')));
       print('로그인 성공. 홈 화면으로 이동');
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomeScreen()));
+      Navigator.pushReplacementNamed(context, '/home');
     } else {
       ScaffoldMessenger.of(
         context,
