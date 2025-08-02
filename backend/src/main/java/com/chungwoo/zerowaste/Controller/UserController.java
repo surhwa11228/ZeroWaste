@@ -32,5 +32,34 @@ public class UserController {
             throw new RuntimeException("Phone verification failed: " + e.getMessage());
         }
     }
+
+    @GetMapping("/info/{emailId}")
+    public UserDto getUserInfo(@PathVariable String emailId) {
+        try {
+            return userService.getUserInfo(emailId);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to get user info: " + e.getMessage());
+        }
+    }
+
+  /*  @PostMapping("/findPassword")
+    public String findPassword(@RequestParam String name, @RequestParam String emailId, @RequestParam String phoneNumber, @RequestParam String verificationCode) {
+        try {
+            return userService.findPassword(name, emailId, phoneNumber, verificationCode);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to find password: " + e.getMessage());
+        }
+    }*/
+    @PostMapping("/login")
+    public String login(@RequestParam String emailId, @RequestParam String password) {
+        try {
+            return userService.login(emailId, password);
+        } catch (Exception e) {
+            throw new RuntimeException("Login failed: " + e.getMessage());
+        }
+    }
+
+
+
 }
 
