@@ -17,25 +17,29 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    // ✅ 플랫폼 초기화 (필수!)
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..loadFlutterAsset('assets/map.html');
   }
 
   @override
-  Widget build(BuildContext context) {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
     final List<Report> markers = MapService.getMockReports();
     final json = jsonEncode(markers.map((r) => r.toJson()).toList());
 
-    // ✅ 마커 주입은 페이지 로드 이후 실행
     Future.delayed(const Duration(seconds: 1), () {
       _controller.runJavaScript("window.addMarkers(`$json`);");
     });
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('지도 보기')),
-      body: WebViewWidget(controller: _controller), // ✅ 최신 문법!
+      body: WebViewWidget(controller: _controller),
     );
   }
 }

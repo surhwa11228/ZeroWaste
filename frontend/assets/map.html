@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=a8032aec993bf62a971882315a1f86b7"></script>
+</head>
+<body>
+<div id="map" style="width:100%;height:100vh;"></div>
+<script>
+  const map = new kakao.maps.Map(document.getElementById('map'), {
+    center: new kakao.maps.LatLng(37.5665, 126.9780),
+    level: 3
+  });
+
+  function addMarker(lat, lng, title) {
+    new kakao.maps.Marker({
+      map: map,
+      position: new kakao.maps.LatLng(lat, lng),
+      title: title
+    });
+  }
+
+  window.addMarkers = function (json) {
+    const data = JSON.parse(json);
+    data.forEach(d => addMarker(d.latitude, d.longitude, d.comment));
+  };
+</script>
+</body>
+</html>
