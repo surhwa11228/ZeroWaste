@@ -25,7 +25,7 @@ import java.util.concurrent.ExecutionException;
 public class ReportService {
 
 
-    public void submitReport(MultipartFile image, ReportSubmissionRequest reportSubmissionRequest, String userId) throws IOException {
+    public void submitReport(MultipartFile image, ReportSubmissionRequest reportSubmissionRequest, String uid) throws IOException {
         ImageUploadResponse imageUploadResponse =
                 StorageUploadUtils.imageUpload(StorageUploadUtils.REPORT, image);
 
@@ -39,7 +39,7 @@ public class ReportService {
         );
 
         Map<String,Object> report = new HashMap<>();
-        report.put("userId", userId);
+        report.put("uid", uid);
         report.put("location",location);
         report.put("address", reportSubmissionRequest.getAddress());
         report.put("description", reportSubmissionRequest.getDescription());
