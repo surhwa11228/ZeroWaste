@@ -1,5 +1,6 @@
 package com.chungwoo.zerowaste.report.controller;
 
+import com.chungwoo.zerowaste.auth.dto.AuthUserDetails;
 import com.chungwoo.zerowaste.report.dto.ReportSearchRequest;
 import com.chungwoo.zerowaste.report.dto.ReportSearchResponse;
 import com.chungwoo.zerowaste.report.dto.ReportSubmissionRequest;
@@ -25,9 +26,9 @@ public class ReportController {
     @PostMapping
     public ResponseEntity<?> submitReport(@RequestPart("image") MultipartFile image,
                                           @RequestPart("report") ReportSubmissionRequest reportSubmissionRequest,
-                                          @AuthenticationPrincipal String userId) throws IOException {
+                                          @AuthenticationPrincipal AuthUserDetails user) throws IOException {
 
-        reportService.submitReport(image, reportSubmissionRequest, userId);
+        reportService.submitReport(image, reportSubmissionRequest, user.getUid());
         return ResponseEntity.ok().body("Report submitted");
     }
 
