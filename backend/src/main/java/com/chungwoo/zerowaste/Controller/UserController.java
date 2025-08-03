@@ -1,7 +1,7 @@
 package com.chungwoo.zerowaste.Controller;
 
 import com.chungwoo.zerowaste.Model.UserDto;
-import com.chungwoo.zerowaste.Model.UserRegistrationRequest;
+import com.chungwoo.zerowaste.Request.*;
 import com.chungwoo.zerowaste.Service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -14,40 +14,51 @@ public class UserController {
 
     private final UserService userService;
 
+    // 회원가입은 기존 UserRegistrationRequest 그대로
     @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public UserDto registerUser(@RequestBody UserRegistrationRequest request) {
-        return userService.registerUser(request);
+    public UserDto registerUser(@RequestBody UserRegistrationRequest req) {
+        return userService.registerUser(req);
     }
 
-    @PostMapping("/verifyPhone")
-    public void verifyPhone(@RequestParam String phoneNumber,
-                            @RequestParam String verificationCode) {
-        userService.verifyPhoneNumber(phoneNumber, verificationCode);
+    // JSON body 로 전화번호+코드 받아서 검증
+    @PostMapping(value = "/verifyPhone", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public void verifyPhone(@RequestBody PhoneVerificationRequest req) {
+        userService.verifyPhoneNumber(req.getPhoneNumber(), req.getVerificationCode());
     }
 
+    // 이메일 경로 파라미터는 그대로
     @GetMapping("/info/{emailId}")
     public UserDto getUserInfo(@PathVariable String emailId) {
         return userService.getUserInfo(emailId);
     }
 
-    @PostMapping("/findId")
-    public String findId(@RequestParam String name,
-                         @RequestParam String phoneNumber,
-                         @RequestParam String verificationCode) {
-        return userService.findId(name, phoneNumber, verificationCode);
+    // JSON body 로 이름+전화번호+코드 받아서 아이디 찾기
+    @PostMapping(value = "/findId", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public String findId(@RequestBody FindIdRequest req) {
+        return userService.findId(
+                req.getName(),
+                req.getPhoneNumber(),
+                req.getVerificationCode()
+        );
     }
 
-    @PostMapping("/findPassword")
-    public String findPassword(@RequestParam String name,
-                               @RequestParam String emailId,
-                               @RequestParam String phoneNumber,
-                               @RequestParam String verificationCode) {
-        return userService.findPassword(name, emailId, phoneNumber, verificationCode);
+    // JSON body 로 이름+이메일+전화번호+코드 받아서 임시 비밀번호 생성
+    @PostMapping(value = "/findPassword", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public String findPassword(@RequestBody FindPasswordRequest req) {
+        return userService.findPassword(
+                req.getName(),
+                req.getEmailId(),
+                req.getPhoneNumber(),
+                req.getVerificationCode()
+        );
     }
 
-    @PostMapping("/login")
-    public String login(@RequestParam String emailId,
-                        @RequestParam String password) {
-        return userService.login(emailId, password);
+    // JSON body 로 로그인 요청
+    @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public String login(@RequestBody LoginRequest req) {
+        return userService.login(
+                req.getEmailId(),
+                req.getPassword()
+        );
     }
 }

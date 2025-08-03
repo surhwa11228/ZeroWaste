@@ -1,11 +1,10 @@
 package com.chungwoo.zerowaste.Controller;
 
+import com.chungwoo.zerowaste.Request.SendVerificationRequest;
 import com.chungwoo.zerowaste.Service.PhoneVerificationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/phone")
@@ -14,10 +13,10 @@ public class PhoneVerificationController {
 
     private final PhoneVerificationService phoneVerificationService;
 
-    // 전화번호 인증 코드 전송
-    @PostMapping("/send")
-    public void sendVerificationCode(@RequestParam String phoneNumber) {
-        phoneVerificationService.sendVerificationCode(phoneNumber);
+    // JSON body 로 전화번호만 받아서 코드 전송
+    @PostMapping(value = "/send", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public void sendVerificationCode(@RequestBody SendVerificationRequest req) {
+        phoneVerificationService.sendVerificationCode(req.getPhoneNumber());
     }
 }
 

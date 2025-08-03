@@ -2,11 +2,10 @@ package com.chungwoo.zerowaste.Service;
 
 import com.chungwoo.zerowaste.Model.PhoneVerificationDto;
 import com.chungwoo.zerowaste.Model.UserDto;
-import com.chungwoo.zerowaste.Model.UserRegistrationRequest;
+import com.chungwoo.zerowaste.Request.UserRegistrationRequest;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
-import com.google.firebase.internal.FirebaseRequestInitializer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
