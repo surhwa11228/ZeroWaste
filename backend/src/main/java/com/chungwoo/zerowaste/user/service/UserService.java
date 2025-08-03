@@ -1,8 +1,7 @@
-package com.chungwoo.zerowaste.Service;
+package com.chungwoo.zerowaste.user.service;
 
-import com.chungwoo.zerowaste.Model.PhoneVerificationDto;
-import com.chungwoo.zerowaste.Model.UserDto;
-import com.chungwoo.zerowaste.Request.UserRegistrationRequest;
+import com.chungwoo.zerowaste.user.Request.UserRegistrationRequest;
+import com.chungwoo.zerowaste.user.dto.UserDto;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
@@ -17,9 +16,7 @@ import java.util.concurrent.ExecutionException;
 @RequiredArgsConstructor
 public class UserService {
 
-    private final PhoneVerificationService phoneVerificationService;
-
-    public UserDto registerUser(UserRegistrationRequest request) {
+    public UserDto registerUser(UserRegistrationRequest request) throws ExecutionException {
         try {
             Firestore db = FirestoreClient.getFirestore("zerowaste");
             CollectionReference users = db.collection("users");
@@ -56,28 +53,6 @@ public class UserService {
         }
     }
 
-    public void verifyPhoneNumber(String phoneNumber, String verificationCode) {
-        try {
-            Firestore db = FirestoreClient.getFirestore();
-            CollectionReference users = db.collection("users");
-            Query query = users.whereEqualTo("phoneNumber", phoneNumber);
-            QuerySnapshot snapshot = query.get().get();
-            if (snapshot.isEmpty()) throw new RuntimeException("Phone number not found");
-
-            PhoneVerificationDto verification = phoneVerificationService.getVerification(phoneNumber);
-            if (!verification.getVerificationCode().equals(verificationCode) ||
-                    verification.getExpiresAt().before(new java.util.Date())) {
-                throw new RuntimeException("Invalid or expired verification code");
-            }
-
-            DocumentReference userRef = snapshot.getDocuments().get(0).getReference();
-            userRef.update("phoneVerified", true).get();
-
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException("Phone verification failed", e);
-        }
-    }
-
     public UserDto getUserInfo(String emailId) {
         try {
             Firestore db = FirestoreClient.getFirestore();
@@ -87,53 +62,6 @@ public class UserService {
             return doc.toObject(UserDto.class);
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException("Error fetching user info", e);
-        }
-    }
-
-    public String findId(String name, String phoneNumber, String verificationCode) {
-        try {
-            Firestore db = FirestoreClient.getFirestore();
-            Query query = db.collection("users")
-                    .whereEqualTo("name", name)
-                    .whereEqualTo("phoneNumber", phoneNumber);
-            QuerySnapshot snapshot = query.get().get();
-            if (snapshot.isEmpty()) throw new RuntimeException("User not found");
-
-            PhoneVerificationDto verification = phoneVerificationService.getVerification(phoneNumber);
-            if (!verification.getVerificationCode().equals(verificationCode) ||
-                    verification.getExpiresAt().before(new java.util.Date())) {
-                throw new RuntimeException("Invalid or expired verification code");
-            }
-
-            return snapshot.getDocuments().get(0).getString("emailId");
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException("Error finding ID", e);
-        }
-    }
-
-    public String findPassword(String name, String emailId, String phoneNumber, String verificationCode) {
-        try {
-            Firestore db = FirestoreClient.getFirestore("zerowaste");
-            Query query = db.collection("users")
-                    .whereEqualTo("name", name)
-                    .whereEqualTo("emailId", emailId)
-                    .whereEqualTo("phoneNumber", phoneNumber);
-            QuerySnapshot snapshot = query.get().get();
-            if (snapshot.isEmpty()) throw new RuntimeException("User not found");
-
-            PhoneVerificationDto verification = phoneVerificationService.getVerification(phoneNumber);
-            if (!verification.getVerificationCode().equals(verificationCode) ||
-                    verification.getExpiresAt().before(new java.util.Date())) {
-                throw new RuntimeException("Invalid or expired verification code");
-            }
-
-            // 임시 비밀번호 생성 및 업데이트
-            String tempPassword = java.util.UUID.randomUUID().toString().substring(0, 8);
-            snapshot.getDocuments().get(0).getReference()
-                    .update("password", tempPassword).get();
-            return tempPassword;
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException("Error finding password", e);
         }
     }
 

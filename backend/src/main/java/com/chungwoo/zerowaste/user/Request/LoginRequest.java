@@ -1,4 +1,4 @@
-package com.chungwoo.zerowaste.Request;
+package com.chungwoo.zerowaste.user.Request;
 
 import lombok.Data;
 

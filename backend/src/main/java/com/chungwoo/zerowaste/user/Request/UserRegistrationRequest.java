@@ -1,4 +1,4 @@
-package com.chungwoo.zerowaste.Request;
+package com.chungwoo.zerowaste.user.Request;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
