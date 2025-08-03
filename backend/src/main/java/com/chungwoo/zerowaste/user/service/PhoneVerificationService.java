@@ -1,51 +1,62 @@
-package com.chungwoo.zerowaste.user.service;
+package com.chungwoo.zerowaste.Service;
 
-import com.chungwoo.zerowaste.user.dto.PhoneVerificationDto;
+import com.chungwoo.zerowaste.FireBase.FireBaseConfig;
+import com.chungwoo.zerowaste.Model.PhoneVerificationDto;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 
 @Service
+@RequiredArgsConstructor
 public class PhoneVerificationService {
 
-    private final Firestore db = FirestoreClient.getFirestore();
 
     public PhoneVerificationDto sendVerificationCode(String phoneNumber) {
-        String verificationCode = generateVerificationCode();
-        Date expiresAt = new Date(System.currentTimeMillis() + 10 * 60 * 1000);
+        Firestore db = FirestoreClient.getFirestore();
 
-        // PhoneVerificationDto를 Map으로 변환
-        Map<String, Object> verificationMap = new HashMap<>();
-        verificationMap.put("phoneNumber", phoneNumber);
-        verificationMap.put("verificationCode", verificationCode);
-        verificationMap.put("expiresAt", expiresAt);
-        verificationMap.put("createdAt", new Date());
-        verificationMap.put("verified", false);
+        String code = generateVerificationCode();
+        Date now = new Date();
+        Date expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
 
-        // Firestore에 저장
-        DocumentReference docRef = db.collection("phoneVerifications").document(phoneNumber);
-        ApiFuture<WriteResult> result = docRef.set(verificationMap);
+        Map<String, Object> map = new HashMap<>();
+        map.put("phoneNumber", phoneNumber);
+        map.put("verificationCode", code);
+        map.put("createdAt", now);
+        map.put("expiresAt", expiresAt);
+        map.put("verified", false);
 
-        // 반환할 DTO
+        db.collection("phoneVerifications").document(phoneNumber).set(map);
+
         PhoneVerificationDto dto = new PhoneVerificationDto();
         dto.setPhoneNumber(phoneNumber);
-        dto.setVerificationCode(verificationCode);
+        dto.setVerificationCode(code);
+        dto.setCreatedAt(now);
         dto.setExpiresAt(expiresAt);
-        dto.setCreatedAt(new Date());
         dto.setVerified(false);
-
         return dto;
     }
 
+    public PhoneVerificationDto getVerification(String phoneNumber) {
+        try {
+            Firestore db = FirestoreClient.getFirestore();
+            DocumentSnapshot doc = db.collection("phoneVerifications")
+                    .document(phoneNumber).get().get();
+            if (!doc.exists()) throw new RuntimeException("Verification not found");
+            return doc.toObject(PhoneVerificationDto.class);
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException("Error fetching verification", e);
+        }
+    }
+
     private String generateVerificationCode() {
-        Random random = new Random();
-        return String.format("%06d", random.nextInt(1000000));
+        return String.format("%06d", new Random().nextInt(1_000_000));
     }
 }
-
