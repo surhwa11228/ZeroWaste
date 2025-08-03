@@ -4,6 +4,7 @@ import com.chungwoo.zerowaste.Model.UserDto;
 import com.chungwoo.zerowaste.Model.UserRegistrationRequest;
 import com.chungwoo.zerowaste.Service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -13,7 +14,7 @@ public class UserController {
 
     private final UserService userService;
 
-    @PostMapping("/register")
+    @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
     public UserDto registerUser(@RequestBody UserRegistrationRequest request) {
         return userService.registerUser(request);
     }

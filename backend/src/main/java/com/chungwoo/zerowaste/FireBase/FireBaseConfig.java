@@ -5,30 +5,37 @@ import com.google.cloud.firestore.Firestore;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Component;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-@Configuration
+@Component
+@Slf4j
 public class FireBaseConfig {
 
-    @Bean
-    public Firestore firestore() {
-        // resources/firebase/serviceAccount.json 경로에 파일을 두세요.
-        try (InputStream serviceAccount = new ClassPathResource("firebase/serviceAccount.json").getInputStream()) {
-            if (FirebaseApp.getApps().isEmpty()) {
-                FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                        .build();
-                FirebaseApp.initializeApp(options);
-                System.out.println("✅ FirebaseApp 초기화 완료");
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Firebase service account 파일을 로드하지 못했습니다.", e);
-        }
-        return FirestoreClient.getFirestore();
+    @PostConstruct
+    public void init() throws IOException {
+
+        FileInputStream serviceAccount = new FileInputStream("C:/Users/surhw/Desktop/ZeroWaste/backend/src/main/resources/firebase/serviceAccount.json");
+
+//        if (serviceAccount == null)
+//            System.out.println("null");
+        FirebaseOptions options = FirebaseOptions
+                .builder()
+                .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                .setProjectId("zerowaste-ccae3")
+                //.d/ 실제 GCP 프로젝트 ID
+                .build();
+
+        FirebaseApp.initializeApp(options);
+        log.info("Firebase app has been initialized");
+
     }
 }

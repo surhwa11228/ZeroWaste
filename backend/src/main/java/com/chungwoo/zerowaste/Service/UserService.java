@@ -5,6 +5,8 @@ import com.chungwoo.zerowaste.Model.UserDto;
 import com.chungwoo.zerowaste.Model.UserRegistrationRequest;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
+import com.google.firebase.cloud.FirestoreClient;
+import com.google.firebase.internal.FirebaseRequestInitializer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,11 +18,11 @@ import java.util.concurrent.ExecutionException;
 @RequiredArgsConstructor
 public class UserService {
 
-    private final Firestore db;
     private final PhoneVerificationService phoneVerificationService;
 
     public UserDto registerUser(UserRegistrationRequest request) {
         try {
+            Firestore db = FirestoreClient.getFirestore("zerowaste");
             CollectionReference users = db.collection("users");
             Query query = users.whereEqualTo("emailId", request.getEmailId());
             ApiFuture<QuerySnapshot> future = query.get();
@@ -57,6 +59,7 @@ public class UserService {
 
     public void verifyPhoneNumber(String phoneNumber, String verificationCode) {
         try {
+            Firestore db = FirestoreClient.getFirestore();
             CollectionReference users = db.collection("users");
             Query query = users.whereEqualTo("phoneNumber", phoneNumber);
             QuerySnapshot snapshot = query.get().get();
@@ -78,6 +81,7 @@ public class UserService {
 
     public UserDto getUserInfo(String emailId) {
         try {
+            Firestore db = FirestoreClient.getFirestore();
             DocumentReference ref = db.collection("users").document(emailId);
             DocumentSnapshot doc = ref.get().get();
             if (!doc.exists()) throw new RuntimeException("User not found");
@@ -89,6 +93,7 @@ public class UserService {
 
     public String findId(String name, String phoneNumber, String verificationCode) {
         try {
+            Firestore db = FirestoreClient.getFirestore();
             Query query = db.collection("users")
                     .whereEqualTo("name", name)
                     .whereEqualTo("phoneNumber", phoneNumber);
@@ -109,6 +114,7 @@ public class UserService {
 
     public String findPassword(String name, String emailId, String phoneNumber, String verificationCode) {
         try {
+            Firestore db = FirestoreClient.getFirestore("zerowaste");
             Query query = db.collection("users")
                     .whereEqualTo("name", name)
                     .whereEqualTo("emailId", emailId)
@@ -134,6 +140,7 @@ public class UserService {
 
     public String login(String emailId, String password) {
         try {
+            Firestore db = FirestoreClient.getFirestore();
             Query query = db.collection("users").whereEqualTo("emailId", emailId);
             QuerySnapshot snapshot = query.get().get();
             if (snapshot.isEmpty()) throw new RuntimeException("User not found");

@@ -1,8 +1,10 @@
 package com.chungwoo.zerowaste.Service;
 
+import com.chungwoo.zerowaste.FireBase.FireBaseConfig;
 import com.chungwoo.zerowaste.Model.PhoneVerificationDto;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
+import com.google.firebase.cloud.FirestoreClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,9 +18,10 @@ import java.util.concurrent.ExecutionException;
 @RequiredArgsConstructor
 public class PhoneVerificationService {
 
-    private final Firestore db;
 
     public PhoneVerificationDto sendVerificationCode(String phoneNumber) {
+        Firestore db = FirestoreClient.getFirestore();
+
         String code = generateVerificationCode();
         Date now = new Date();
         Date expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
@@ -43,6 +46,7 @@ public class PhoneVerificationService {
 
     public PhoneVerificationDto getVerification(String phoneNumber) {
         try {
+            Firestore db = FirestoreClient.getFirestore();
             DocumentSnapshot doc = db.collection("phoneVerifications")
                     .document(phoneNumber).get().get();
             if (!doc.exists()) throw new RuntimeException("Verification not found");
