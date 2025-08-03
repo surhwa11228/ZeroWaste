@@ -7,6 +7,19 @@
 # BlueJ files
 *.ctxt
 
+# Gradle
+.gradle/
+build/
+tmp/
+
+# IntelliJ
+.idea/
+!/.idea/gradle.xml
+!/.idea/misc.xml
+
+# 기타
+*.iml
+
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
@@ -19,8 +32,9 @@
 *.tar.gz
 *.rar
 
-# Firebase Service Account Key
+# Firebase Service Account
 serviceAccount.json
+
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
