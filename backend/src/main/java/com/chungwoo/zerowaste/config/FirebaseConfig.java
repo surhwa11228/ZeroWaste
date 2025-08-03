@@ -24,18 +24,22 @@ public class FirebaseConfig {
 
         log.info("GOOGLE_APPLICATION_CREDENTIALS = {}", System.getenv("GOOGLE_APPLICATION_CREDENTIALS"));
 
-        FirestoreOptions firestoreOptions = FirestoreOptions.newBuilder()
-                .setDatabaseId(firestoreProperties.getDB())
+//        FirestoreOptions firestoreOptions = FirestoreOptions.newBuilder()
+//                .setDatabaseId(firestoreProperties.getDB())
+//                .build();
+
+
+
+        FirebaseOptions options = FirebaseOptions.builder()
+                .setCredentials(GoogleCredentials.getApplicationDefault())
+//                .setFirestoreOptions(firestoreOptions)
+                .setStorageBucket(firebaseStorageProperties.getBucket())
                 .build();
 
-        FirebaseOptions firebaseOptions = FirebaseOptions.builder()
-                .setCredentials(GoogleCredentials.getApplicationDefault())
-                .setFirestoreOptions(firestoreOptions)
-                .setProjectId(firebaseStorageProperties.getBucket())
-                .build();
+
 
         if(FirebaseApp.getApps().isEmpty()) {
-            FirebaseApp.initializeApp(firebaseOptions);
+            FirebaseApp.initializeApp(options);
             log.info("Firebase app has been initialized");
         }
 

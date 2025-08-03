@@ -29,7 +29,7 @@ public class ReportService {
         ImageUploadResponse imageUploadResponse =
                 StorageUploadUtils.imageUpload(StorageUploadUtils.REPORT, image);
 
-        Firestore db = FirestoreClient.getFirestore("zerowaste");
+        Firestore db = FirestoreClient.getFirestore();
 
         GeoPoint location = GeoUtils.determineTrustedLocation(
                 reportSubmissionRequest.getGpsLatitude(),
@@ -43,7 +43,7 @@ public class ReportService {
         report.put("location",location);
         report.put("address", reportSubmissionRequest.getAddress());
         report.put("description", reportSubmissionRequest.getDescription());
-        report.put("imageUrl", imageUploadResponse.getFileName());
+        report.put("imageUrl", imageUploadResponse.getUrl());
         report.put("imageName", imageUploadResponse.getFileName());
         report.put("wasteCategory", reportSubmissionRequest.getWasteCategory());
         report.put("reportedAt", reportSubmissionRequest.getReportedAt());
@@ -52,12 +52,15 @@ public class ReportService {
         log.info("Report submitted");
     }
 
+
+    //수정중
     public List<ReportSearchResponse> searchReports(ReportSearchRequest reportSearchRequest) throws ExecutionException, InterruptedException {
         Firestore db = FirestoreClient.getFirestore();
 
         Timestamp threeDaysAgo = Timestamp.of(
                 Date.from(Instant.now().minus(Duration.ofDays(3)))
         );
+
 
         CollectionReference reportsRef = db.collection("reports");
 
@@ -69,20 +72,25 @@ public class ReportService {
                 reportSearchRequest.getRadius()
         );
 
+        log.info("bounding box {}, {}, {}, {} ", boundingBox.minLat(), boundingBox.minLng(), boundingBox.maxLat(), boundingBox.maxLng());
+
+        GeoPoint minLatLng = new  GeoPoint(boundingBox.minLat(), boundingBox.minLng());
+        GeoPoint maxLatLng = new  GeoPoint(boundingBox.maxLat(), boundingBox.maxLng());
+
         query = query
-                .whereGreaterThanOrEqualTo("location.latitude", boundingBox.minLat())
-                .whereLessThanOrEqualTo("location.latitude", boundingBox.maxLat())
-                .whereGreaterThanOrEqualTo("location.longitude", boundingBox.minLng())
-                .whereLessThanOrEqualTo("location.longitude", boundingBox.maxLng())
+                .whereGreaterThanOrEqualTo("location", minLatLng)
+                .whereLessThanOrEqualTo("location", maxLatLng)
                 .limit(50);
 
         ApiFuture<QuerySnapshot> querySnapshot = query.get();
+        log.info("Query results for {} reports", querySnapshot.get().getDocuments().size());
         List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
 
         return documents.stream()
                 .map(document -> {
-                    Double latitude = document.getDouble("location.latitude");
-                    Double longitude = document.getDouble("location.longitude");
+                    GeoPoint location = document.get("location", GeoPoint.class);
+                    Double latitude = location.getLatitude();
+                    Double longitude = location.getLongitude();
                     String wasteCategory = document.getString("wasteCategory");
 
                     if (latitude == null || longitude == null || wasteCategory == null) {
