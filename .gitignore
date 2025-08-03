@@ -7,8 +7,24 @@
 # BlueJ files
 *.ctxt
 
+# Gradle
+.gradle/
+build/
+tmp/
+
+# IntelliJ
+.idea/
+!/.idea/gradle.xml
+!/.idea/misc.xml
+
+# 기타
+*.iml
+
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
+
+# Firebase Service Account
+serviceAccount.json
 
 # Package Files #
 *.jar
