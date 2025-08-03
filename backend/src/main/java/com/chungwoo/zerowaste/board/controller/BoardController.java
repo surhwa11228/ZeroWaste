@@ -1,5 +1,6 @@
 package com.chungwoo.zerowaste.board.controller;
 
+import com.chungwoo.zerowaste.auth.dto.AuthUserDetails;
 import com.chungwoo.zerowaste.board.model.Post;
 import com.chungwoo.zerowaste.board.model.Comment;
 import com.chungwoo.zerowaste.board.boarddto.BoardDto;
@@ -63,18 +64,18 @@ public class BoardController {
             @PathVariable String id,
             @RequestPart(value = "image", required = false) MultipartFile image,
             @RequestPart(value = "post") BoardDto boardDto,
-            @AuthenticationPrincipal String userId) throws IOException {
+            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
 
-        return ResponseEntity.ok(boardService.updatePost(id, image, boardDto, userId));
+        return ResponseEntity.ok(boardService.updatePost(id, image, boardDto, user.getUid()));
     }
 
     /** 게시글 삭제 */
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<String> deletePost(
             @PathVariable String id,
-            @AuthenticationPrincipal(expression = "uid") String userId) {
+            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
 
-        boardService.deletePost(id, userId);
+        boardService.deletePost(id, user.getUid());
         return ResponseEntity.ok("게시글이 삭제되었습니다.");
     }
 
@@ -85,9 +86,9 @@ public class BoardController {
     public ResponseEntity<Comment> addComment(
             @PathVariable String postId,
             @RequestBody CommentDto commentDto,
-            @AuthenticationPrincipal(expression = "uid") String userId) {
+            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
 
-        return ResponseEntity.ok(boardService.addComment(postId, commentDto, userId));
+        return ResponseEntity.ok(boardService.addComment(postId, commentDto, user.getUid()));
     }
 
     /** 댓글 목록 조회 */
@@ -101,9 +102,9 @@ public class BoardController {
     public ResponseEntity<String> deleteComment(
             @PathVariable String postId,
             @PathVariable String commentId,
-            @AuthenticationPrincipal(expression = "uid") String userId) {
+            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
 
-        boardService.deleteComment(postId, commentId, userId);
+        boardService.deleteComment(postId, commentId, user.getUid());
         return ResponseEntity.ok("댓글이 삭제되었습니다.");
     }
 }

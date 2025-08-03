@@ -18,13 +18,12 @@ public class UserService {
 
     public UserDto registerUser(UserRegistrationRequest request) throws ExecutionException {
         try {
-            Firestore db = FirestoreClient.getFirestore("zerowaste");
-            CollectionReference users = db.collection("users");
-            Query query = users.whereEqualTo("emailId", request.getEmailId());
-            ApiFuture<QuerySnapshot> future = query.get();
-            QuerySnapshot snapshot = future.get();
-            if (!snapshot.isEmpty()) {
-                throw new RuntimeException("Email ID already exists");
+            Firestore db = FirestoreClient.getFirestore();
+            if (!db.collection("users").document("testUid").get().get().exists()) {
+                //save user data (document ID <- uid, document fields <- email, region, etc...)
+            }
+            else{
+                //do nothing
             }
 
             Map<String, Object> userMap = new HashMap<>();
@@ -36,8 +35,7 @@ public class UserService {
             //userMap.put("password", request.getPassword());
             userMap.put("phoneVerified", false);
 
-            DocumentReference userRef = users.document(request.getEmailId());
-            userRef.set(userMap).get();
+            db.collection("users").document("testUid").set(userMap);
 
             UserDto dto = new UserDto();
             dto.setEmailId(request.getEmailId());
@@ -65,6 +63,8 @@ public class UserService {
         }
     }
 
+
+    //login은 auth 패키지의 Auth*로 구현
     public String login(String emailId, String password) {
         try {
             Firestore db = FirestoreClient.getFirestore();

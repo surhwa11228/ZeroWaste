@@ -1,4 +1,6 @@
 firebase:
+  store:
+    DB: zerowaste
   storage:
     bucket: zerowaste-ccae3.firebasestorage.app
 

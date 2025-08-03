@@ -1,6 +1,7 @@
 package com.chungwoo.zerowaste.config;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.firestore.FirestoreOptions;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
@@ -15,21 +16,26 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class FirebaseConfig {
 
-    private final FirebaseProperties firebaseProperties;
+    private final FirebaseStorageProperties firebaseStorageProperties;
+    private final FirestoreProperties firestoreProperties;
 
     @PostConstruct
     public void init() throws IOException {
 
         log.info("GOOGLE_APPLICATION_CREDENTIALS = {}", System.getenv("GOOGLE_APPLICATION_CREDENTIALS"));
 
-        FirebaseOptions options = FirebaseOptions
-                .builder()
-                .setCredentials(GoogleCredentials.getApplicationDefault())//getApplicationDefault로 설정한 환경변수 로드
-                .setStorageBucket(firebaseProperties.getBucket())//storage bucket 초기화
+        FirestoreOptions firestoreOptions = FirestoreOptions.newBuilder()
+                .setDatabaseId(firestoreProperties.getDB())
+                .build();
+
+        FirebaseOptions firebaseOptions = FirebaseOptions.builder()
+                .setCredentials(GoogleCredentials.getApplicationDefault())
+                .setFirestoreOptions(firestoreOptions)
+                .setProjectId(firebaseStorageProperties.getBucket())
                 .build();
 
         if(FirebaseApp.getApps().isEmpty()) {
-            FirebaseApp.initializeApp(options);
+            FirebaseApp.initializeApp(firebaseOptions);
             log.info("Firebase app has been initialized");
         }
 

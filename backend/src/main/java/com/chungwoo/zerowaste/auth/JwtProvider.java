@@ -32,11 +32,14 @@ public class JwtProvider {
     }
 
     public String createAccessToken(String uid, String email) {
+        Date now = new Date();
+        Date expiration = new Date(now.getTime() + accessTokenExpiration);
+
         return Jwts.builder()
                 .setSubject(uid)
                 .claim("email", email)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
+                .setIssuedAt(now)
+                .setExpiration(expiration)
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "firebase.storage")
 @Getter
 @Setter
-public class FirebaseProperties {
+public class FirebaseStorageProperties {
     private String bucket;
+
 }

@@ -29,7 +29,7 @@ public class ReportService {
         ImageUploadResponse imageUploadResponse =
                 StorageUploadUtils.imageUpload(StorageUploadUtils.REPORT, image);
 
-        Firestore db = FirestoreClient.getFirestore();
+        Firestore db = FirestoreClient.getFirestore("zerowaste");
 
         GeoPoint location = GeoUtils.determineTrustedLocation(
                 reportSubmissionRequest.getGpsLatitude(),
