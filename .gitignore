@@ -20,6 +20,8 @@ tmp/
 .idea/
 !/.idea/gradle.xml
 !/.idea/misc.xml
+/backend/!/.idea/gradle.xml
+/backend/!/.idea/misc.xml
 
 # 기타
 *.iml

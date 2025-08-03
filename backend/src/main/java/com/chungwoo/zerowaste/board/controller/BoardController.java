@@ -62,8 +62,8 @@ public class BoardController {
     public ResponseEntity<Post> updatePost(
             @PathVariable String id,
             @RequestPart(value = "image", required = false) MultipartFile image,
-            @RequestPart("post") BoardDto boardDto,
-            @AuthenticationPrincipal(expression = "uid") String userId) {
+            @RequestPart(value = "post") BoardDto boardDto,
+            @AuthenticationPrincipal String userId) throws IOException {
 
         return ResponseEntity.ok(boardService.updatePost(id, image, boardDto, userId));
     }
