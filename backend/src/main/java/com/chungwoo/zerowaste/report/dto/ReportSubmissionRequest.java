@@ -19,9 +19,4 @@ public class ReportSubmissionRequest {
     @NotBlank private String wasteCategory;
 
     @NotNull private Date reportedAt;
-
-    private String description;
-
-    //필요한가?
-    private String address;
 }

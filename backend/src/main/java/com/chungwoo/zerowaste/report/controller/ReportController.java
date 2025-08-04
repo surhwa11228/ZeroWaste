@@ -17,13 +17,13 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/reports")
+@RequestMapping("/api/report")
 @RequiredArgsConstructor
 public class ReportController {
 
     private final ReportService reportService;
 
-    @PostMapping("/submit")
+    @PostMapping
     public ResponseEntity<ApiResponse<ReportResponse>> submitReport(@RequestBody ReportSubmissionRequest request,
                                           @AuthenticationPrincipal AuthUserDetails user) {
 
@@ -48,10 +48,10 @@ public class ReportController {
 
     @PostMapping("/search")
     public  ResponseEntity<ApiResponse<List<ReportResponse>>> searchReports
-            (@RequestBody ReportSearchRequest reportSearchRequest) {
+            (@RequestBody ReportSearchRequest request) {
 
-        List<ReportResponse> reports = reportService.searchReports(reportSearchRequest);
-        log.info("Report search results for {} reports", reports.size());
+        List<ReportResponse> reports = reportService.searchReports(request);
+//        log.info("Report search results for {} reports", reports.size());
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(reports));
     }

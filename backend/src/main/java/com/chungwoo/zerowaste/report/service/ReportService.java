@@ -11,7 +11,9 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.coyote.Request;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -60,25 +62,36 @@ public class ReportService {
         }
     }
 
+//    public void addAdditionalInfo(String uid, Request request, MultipartFile multipartFile) {
+//        Firestore db = FirestoreClient.getFirestore();
+//        //request의 uid와 입력받은 uid가 같은지 확인 후, Request의 doc Id를 참조하여 hasAdditionalInfo필드확인
+//        //추가 정보가 입력되지 않은 제보라면 추가 정보 입력 허용
+//        //입력받은 이미지 업로드 후 주석 등 추가로 db에 저장
+//    }
+//
 
-    public List<ReportResponse> searchReports(ReportSearchRequest reportSearchRequest)  {
+    public List<ReportResponse> searchReports(ReportSearchRequest request)  {
         try {
             Firestore db = FirestoreClient.getFirestore();
 
-            Timestamp threeDaysAgo = Timestamp.of(
-                    Date.from(Instant.now().minus(Duration.ofDays(3)))
+            //일주일로 설정하여 필터. 추후 가변으로 구현하는 게 좋아보임
+            Timestamp aWeekAgo = Timestamp.of(
+                    Date.from(Instant.now().minus(Duration.ofDays(7)))
             );
-
             CollectionReference reportsRef = db.collection("reports");
+            Query query = reportsRef.whereGreaterThan("reportedAt", aWeekAgo);
 
-            Query query = reportsRef.whereGreaterThan("reportedAt", threeDaysAgo);
+            //wasteCategory를 설정한 경우 필터
+            if (request.getCategory() != null && !request.getCategory().isBlank()) {
+                query = query.whereEqualTo("wasteCategory", request.getCategory());
+            }
 
+            //중심점으로부터 일정 거리의 최소 경계 박스를 구한 뒤 범위 내의 제보를 쿼리
             GeoUtils.BoundingBox boundingBox = GeoUtils.calculateBoundingBox(
-                    reportSearchRequest.getCenterLat(),
-                    reportSearchRequest.getCenterLng(),
-                    reportSearchRequest.getRadius()
+                    request.getCenterLat(),
+                    request.getCenterLng(),
+                    request.getRadius()
             );
-
             query = query
                     .whereGreaterThanOrEqualTo("longitude", boundingBox.minLng())
                     .whereLessThanOrEqualTo("longitude", boundingBox.maxLng())
@@ -89,6 +102,7 @@ public class ReportService {
             ApiFuture<QuerySnapshot> querySnapshot = query.get();
             List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
 
+            //리스트로 만들어 반환
             return convertDocumentsToResponses(documents);
 
         } catch (ExecutionException | InterruptedException e) {
