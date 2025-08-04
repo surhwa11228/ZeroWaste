@@ -6,7 +6,7 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public class ImageUploadResponse {
+public class ImageUploadResult {
     private String fileName;
     private String url;
     private Blob blob;

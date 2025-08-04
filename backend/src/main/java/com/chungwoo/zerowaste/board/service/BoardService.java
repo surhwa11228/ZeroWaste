@@ -4,9 +4,8 @@ import com.chungwoo.zerowaste.board.model.Post;
 import com.chungwoo.zerowaste.board.model.Comment;
 import com.chungwoo.zerowaste.board.boarddto.BoardDto;
 import com.chungwoo.zerowaste.board.boarddto.CommentDto;
-import com.chungwoo.zerowaste.upload.dto.ImageUploadResponse;
+import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
 import com.chungwoo.zerowaste.utils.StorageUploadUtils;
-import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +30,7 @@ public class BoardService {
         //Test
         String testUid = "testUid";
 
-        ImageUploadResponse imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
+        ImageUploadResult imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
         String imageUrl = imageResponse.getUrl();
 
 

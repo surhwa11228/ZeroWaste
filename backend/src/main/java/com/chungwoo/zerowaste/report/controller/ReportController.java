@@ -1,21 +1,19 @@
 package com.chungwoo.zerowaste.report.controller;
 
+import com.chungwoo.zerowaste.api.ApiResponse;
 import com.chungwoo.zerowaste.auth.dto.AuthUserDetails;
 import com.chungwoo.zerowaste.report.dto.ReportSearchRequest;
-import com.chungwoo.zerowaste.report.dto.ReportSearchResponse;
+import com.chungwoo.zerowaste.report.dto.ReportResponse;
 import com.chungwoo.zerowaste.report.dto.ReportSubmissionRequest;
 import com.chungwoo.zerowaste.report.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @RestController
@@ -25,25 +23,37 @@ public class ReportController {
 
     private final ReportService reportService;
 
-    @PostMapping
-    public ResponseEntity<?> submitReport(@RequestPart("image") MultipartFile image,
-                                          @RequestPart("report") ReportSubmissionRequest reportSubmissionRequest,
-                                          @AuthenticationPrincipal AuthUserDetails user) throws IOException {
+    @PostMapping("/submit")
+    public ResponseEntity<ApiResponse<ReportResponse>> submitReport(@RequestBody ReportSubmissionRequest request,
+                                          @AuthenticationPrincipal AuthUserDetails user) {
 
 
         //test
         user = new AuthUserDetails("testUID", "testEmail");
 
-        reportService.submitReport(image, reportSubmissionRequest, user.getUid());
-        return ResponseEntity.ok().body("Report submitted");
+        ReportResponse report =  reportService.submitReport(request, user.getUid());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created(report));
     }
 
-    @PostMapping("/search")
-    public  ResponseEntity<List<ReportSearchResponse>> searchReports(@RequestBody ReportSearchRequest reportSearchRequest) throws ExecutionException, InterruptedException {
+//    @PostMapping("/submit/additional/{id}")
+//    public ResponseEntity<ApiResponse<Void>> addAdditionalInfo(@RequestPart("image") MultipartFile file,
+//                                                                         @RequestPart("info") ReportAdditionalInfoRequest request,
+//                                                                         AuthenticationPrincipal AuthUserDetails user){
+//
+//          추후 구현
+//
+//    }
 
-        List<ReportSearchResponse> reports = reportService.searchReports(reportSearchRequest);
+
+    @PostMapping("/search")
+    public  ResponseEntity<ApiResponse<List<ReportResponse>>> searchReports
+            (@RequestBody ReportSearchRequest reportSearchRequest) {
+
+        List<ReportResponse> reports = reportService.searchReports(reportSearchRequest);
         log.info("Report search results for {} reports", reports.size());
-        return ResponseEntity.ok(reports);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(ApiResponse.success(reports));
     }
 
 }
