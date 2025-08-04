@@ -21,7 +21,7 @@ public class AuthController {
     private final AuthService authService;
 
 
-    @PostMapping("/login")
+    @PostMapping("/api/auth/login")
     public ResponseEntity<?> login(@RequestHeader("Authorization") String authorizationHeader) throws FirebaseAuthException {
         String idToken = extractToken(authorizationHeader);
         FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);

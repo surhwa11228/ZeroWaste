@@ -26,13 +26,15 @@ public class SecurityConfig {
 //                .formLogin(form -> form.disable())
 //                .sessionManagement(sess ->
 //                        sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-//                .authorizeHttpRequests(auth -> auth.requestMatchers("/auth/**").permitAll()
+//                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**").permitAll()
 //                                .anyRequest().authenticated())
 //                .addFilterBefore(new JwtAuthenticationFilter(jwtProvider),
 //                        UsernamePasswordAuthenticationFilter.class)
 //                .build();
 //    }
 
+
+    //test permit all
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
