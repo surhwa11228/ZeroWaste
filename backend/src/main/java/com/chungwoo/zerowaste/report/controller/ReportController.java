@@ -6,6 +6,7 @@ import com.chungwoo.zerowaste.report.dto.ReportSearchRequest;
 import com.chungwoo.zerowaste.report.dto.ReportResponse;
 import com.chungwoo.zerowaste.report.dto.ReportSubmissionRequest;
 import com.chungwoo.zerowaste.report.service.ReportService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -24,7 +25,7 @@ public class ReportController {
     private final ReportService reportService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<ReportResponse>> submitReport(@RequestBody ReportSubmissionRequest request,
+    public ResponseEntity<ApiResponse<ReportResponse>> submitReport(@RequestBody @Valid ReportSubmissionRequest request,
                                           @AuthenticationPrincipal AuthUserDetails user) {
 
 
@@ -48,7 +49,7 @@ public class ReportController {
 
     @PostMapping("/search")
     public  ResponseEntity<ApiResponse<List<ReportResponse>>> searchReports
-            (@RequestBody ReportSearchRequest request) {
+            (@RequestBody @Valid ReportSearchRequest request) {
 
         List<ReportResponse> reports = reportService.searchReports(request);
 //        log.info("Report search results for {} reports", reports.size());
