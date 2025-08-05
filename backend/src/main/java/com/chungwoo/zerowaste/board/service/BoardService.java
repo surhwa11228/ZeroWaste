@@ -5,7 +5,7 @@ import com.chungwoo.zerowaste.board.model.Comment;
 import com.chungwoo.zerowaste.board.boarddto.BoardDto;
 import com.chungwoo.zerowaste.board.boarddto.CommentDto;
 import com.chungwoo.zerowaste.board.boarddto.BoardSearchResponseDto;
-import com.chungwoo.zerowaste.upload.dto.ImageUploadResponse;
+import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
 import com.chungwoo.zerowaste.utils.StorageUploadUtils;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
@@ -22,14 +22,14 @@ import java.util.concurrent.ExecutionException;
 public class BoardService {
 
     /** 게시글 작성 */
-    public String post(MultipartFile image, BoardDto boardDto, String userId) throws IOException {
+    public String post(MultipartFile image, BoardDto boardDto, String userId){
         Firestore db = FirestoreClient.getFirestore();
 
         // 🔹 Firestore 트랜잭션으로 auto-increment postId 생성
         Long postIdLong;
         try {
             DocumentReference counterRef = db.collection("counters").document("postId");
-            postIdLong = db.runTransaction((Transaction.Function<Long>) transaction -> {
+            postIdLong = db.runTransaction(transaction -> {
                 DocumentSnapshot snapshot = transaction.get(counterRef).get();
 
                 Long currentValue = snapshot.getLong("value");
@@ -53,7 +53,7 @@ public class BoardService {
         String imageUrl = null;
         try {
             if (image != null && !image.isEmpty()) {
-                ImageUploadResponse imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
+                ImageUploadResult imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
                 imageUrl = imageResponse.getUrl();
             }
         } catch (Exception e) {
@@ -155,7 +155,7 @@ public class BoardService {
             String imageUrl = oldPost.getImageUrl();
             if (image != null && !image.isEmpty()) {
                 try {
-                    ImageUploadResponse imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
+                    ImageUploadResult imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
                     imageUrl = imageResponse.getUrl();
                 } catch (Exception e) {
                     System.out.println("⚠ 이미지 업로드 실패: " + e.getMessage());
