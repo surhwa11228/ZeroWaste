@@ -11,5 +11,5 @@ public class ReportSearchRequest {
 
     @NotNull private Double radius;
 
-    private String category;
+    private String wasteCategory;
 }

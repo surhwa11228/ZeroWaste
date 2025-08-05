@@ -58,9 +58,9 @@ public class ReportController {
                 .body(ApiResponse.success(reports));
     }
 
-    @PostMapping("/my")
+    @GetMapping("/my")
     public ResponseEntity<ApiResponse<List<DetailedReportResponse>>> searchMyReports
-            (Long startAfter, @AuthenticationPrincipal AuthUserDetails user) {
+            (@RequestBody Long startAfter, @AuthenticationPrincipal AuthUserDetails user) {
 
 
         List<DetailedReportResponse> myReports = reportService.searchMyReports(startAfter, user);

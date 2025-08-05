@@ -10,13 +10,10 @@ import com.chungwoo.zerowaste.report.dto.ReportSubmissionRequest;
 import com.chungwoo.zerowaste.utils.GeoUtils;
 import com.chungwoo.zerowaste.utils.ListConverter;
 import com.google.api.core.ApiFuture;
-import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.coyote.Request;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -86,8 +83,8 @@ public class ReportService {
             Query query = reportsRef.whereGreaterThan("reportedAt", aWeekAgo);
 
             //wasteCategory를 설정한 경우 필터
-            if (request.getCategory() != null && !request.getCategory().isBlank()) {
-                query = query.whereEqualTo("wasteCategory", request.getCategory());
+            if (request.getWasteCategory() != null && !request.getWasteCategory().isBlank()) {
+                query = query.whereEqualTo("wasteCategory", request.getWasteCategory());
             }
 
             //중심점으로부터 일정 거리의 최소 경계 박스를 구한 뒤 범위 내의 제보를 쿼리
