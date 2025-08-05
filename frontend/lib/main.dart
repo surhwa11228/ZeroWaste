@@ -1,30 +1,41 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/screens/auth/login_screen.dart';
-import 'package:frontend/screens/auth/register_screen.dart';
-import 'package:frontend/screens/home/home_screen.dart';
-import 'package:frontend/screens/report/report_form_screen.dart';
-import 'package:frontend/screens/map/map_screen.dart';
+import 'utils/app_theme.dart';
+import 'screens/splash_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/signup_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/report_screen.dart';
+import 'screens/report_detail_screen.dart';
+import 'screens/mypage_screen.dart';
+import 'screens/admin_dashboard_screen.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  runApp(const ZeroWasteApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ZeroWasteApp extends StatelessWidget {
+  const ZeroWasteApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ZeroWaste',
-      theme: ThemeData(primarySwatch: Colors.green),
-      home: const LoginScreen(),
+      debugShowCheckedModeBanner: false,
+      title: 'ZeroWaste (UI)',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
+      initialRoute: '/splash',
       routes: {
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const HomeScreen(),
-        '/report/form': (context) => const ReportFormScreen(),
-        '/map': (context) => const MapScreen(),
+        '/splash': (_) => const SplashScreen(),
+        '/onboarding': (_) => const OnboardingScreen(),
+        '/login': (_) => const LoginScreen(),
+        '/signup': (_) => const SignupScreen(),
+        '/home': (_) => const HomeScreen(),
+        '/report': (_) => const ReportScreen(),
+        '/report-detail': (_) => const ReportDetailScreen(),
+        '/mypage': (_) => const MyPageScreen(),
+        '/admin': (_) => const AdminDashboardScreen(),
       },
     );
   }
