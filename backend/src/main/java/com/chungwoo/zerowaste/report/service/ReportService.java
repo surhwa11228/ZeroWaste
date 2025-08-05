@@ -1,11 +1,14 @@
 package com.chungwoo.zerowaste.report.service;
 
+import com.chungwoo.zerowaste.auth.dto.AuthUserDetails;
 import com.chungwoo.zerowaste.exception.exceptions.ReportSearchFailedException;
 import com.chungwoo.zerowaste.exception.exceptions.ReportSubmissionFailedException;
+import com.chungwoo.zerowaste.report.dto.DetailedReportResponse;
 import com.chungwoo.zerowaste.report.dto.ReportSearchRequest;
 import com.chungwoo.zerowaste.report.dto.ReportResponse;
 import com.chungwoo.zerowaste.report.dto.ReportSubmissionRequest;
 import com.chungwoo.zerowaste.utils.GeoUtils;
+import com.chungwoo.zerowaste.utils.ListConverter;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.*;
@@ -25,7 +28,7 @@ import java.util.concurrent.ExecutionException;
 public class ReportService {
 
     public ReportResponse submitReport(ReportSubmissionRequest request,
-                                       String uid) {
+                                       AuthUserDetails user) {
 
         Firestore db = FirestoreClient.getFirestore();
 
@@ -37,11 +40,11 @@ public class ReportService {
         );
 
         Map<String,Object> report = new HashMap<>();
-        report.put("uid", uid);
+        report.put("uid", user.getUid());
         report.put("latitude", location.getLatitude());
         report.put("longitude",location.getLongitude());
         report.put("wasteCategory", request.getWasteCategory());
-        report.put("reportedAt", request.getReportedAt());
+        report.put("reportedAt", System.currentTimeMillis());
         report.put("hasAdditionalInfo", false);
 
 
@@ -75,9 +78,10 @@ public class ReportService {
             Firestore db = FirestoreClient.getFirestore();
 
             //일주일로 설정하여 필터. 추후 가변으로 구현하는 게 좋아보임
-            Timestamp aWeekAgo = Timestamp.of(
-                    Date.from(Instant.now().minus(Duration.ofDays(7)))
-            );
+            long aWeekAgo = Instant.now()
+                    .minus(Duration.ofDays(7))
+                    .toEpochMilli();
+
             CollectionReference reportsRef = db.collection("reports");
             Query query = reportsRef.whereGreaterThan("reportedAt", aWeekAgo);
 
@@ -103,18 +107,33 @@ public class ReportService {
             List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
 
             //리스트로 만들어 반환
-            return convertDocumentsToResponses(documents);
+            return ListConverter.convertDocumentsToList(documents, this::mapToReportResponse);
 
         } catch (ExecutionException | InterruptedException e) {
             throw new ReportSearchFailedException("제보 검색 실패", e);
         }
     }
 
-    private List<ReportResponse> convertDocumentsToResponses(List<QueryDocumentSnapshot> documents) {
-        return documents.stream()
-                .map(this::mapToReportResponse)
-                .filter(Objects::nonNull)
-                .toList();
+    public List<DetailedReportResponse> searchMyReports(Long startAfter, AuthUserDetails user)  {
+        try{
+            Firestore db = FirestoreClient.getFirestore();
+            CollectionReference reportsRef = db.collection("reports");
+
+            Query query = reportsRef.whereEqualTo("uid", user.getUid())
+                    .orderBy("reportedAt", Query.Direction.DESCENDING);
+            if (startAfter != null) {
+                query = query.startAfter(startAfter);
+            }
+            query = query.limit(10);
+
+            ApiFuture<QuerySnapshot> querySnapshot = query.get();
+            List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
+
+            return ListConverter.convertDocumentsToList(documents, this::mapToDetailedReportResponse);
+        }
+        catch (ExecutionException | InterruptedException e) {
+            throw new ReportSearchFailedException("제보 검색 실패", e);
+        }
     }
 
     private ReportResponse mapToReportResponse(QueryDocumentSnapshot document) {
@@ -127,12 +146,34 @@ public class ReportService {
             return null;
         }
 
-        return new ReportResponse(
-                document.getId(),
-                latitude,
-                longitude,
-                wasteCategory
-        );
+        return ReportResponse.builder()
+                .documentId(document.getId())
+                .latitude(latitude)
+                .longitude(longitude)
+                .wasteCategory(wasteCategory)
+                .build();
+    }
+    private DetailedReportResponse mapToDetailedReportResponse(QueryDocumentSnapshot document) {
+        Double latitude = document.get("latitude", Double.class);
+        Double longitude = document.get("longitude", Double.class);
+        String wasteCategory = document.getString("wasteCategory");
+        Long reportedAt = document.get("reportedAt", Long.class);
+        Boolean hasAdditionalInfo = document.get("hasAdditionalInfo", Boolean.class);
+
+        if (latitude == null || longitude == null || wasteCategory == null
+                || reportedAt == null || hasAdditionalInfo == null) {
+            log.warn("필수 정보 누락 docId: {}", document.getId());
+            return null;
+        }
+
+        return DetailedReportResponse.builder()
+                .documentId(document.getId())
+                .latitude(latitude)
+                .longitude(longitude)
+                .wasteCategory(wasteCategory)
+                .reportedAt(reportedAt)
+                .hasAdditionalInfo(hasAdditionalInfo)
+                .build();
     }
 
 }
