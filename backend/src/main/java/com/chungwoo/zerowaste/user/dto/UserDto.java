@@ -1,6 +1,7 @@
 package com.chungwoo.zerowaste.user.dto;
 
 import lombok.Data;
+
 import java.util.Date;
 
 @Data

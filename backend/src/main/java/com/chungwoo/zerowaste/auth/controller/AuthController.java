@@ -1,18 +1,25 @@
 package com.chungwoo.zerowaste.auth.controller;
 
+import com.chungwoo.zerowaste.api.ApiResponse;
 import com.chungwoo.zerowaste.auth.JwtProvider;
+import com.chungwoo.zerowaste.auth.dto.LoginResponse;
 import com.chungwoo.zerowaste.auth.dto.RefreshTokenSaveRequest;
 import com.chungwoo.zerowaste.auth.sevice.AuthService;
+import com.chungwoo.zerowaste.exception.exceptions.EmailNotVerifiedException;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.java.Log;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.security.auth.login.LoginException;
 import java.util.Date;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -22,10 +29,23 @@ public class AuthController {
 
 
     @PostMapping("/api/auth/login")
-    public ResponseEntity<?> login(@RequestHeader("Authorization") String authorizationHeader) throws FirebaseAuthException {
-        String idToken = extractToken(authorizationHeader);
-        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
-        decodedToken.isEmailVerified();
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestHeader("Authorization") String authorizationHeader) throws FirebaseAuthException {
+//        String idToken = extractToken(authorizationHeader);
+//        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
+//        if(!decodedToken.isEmailVerified()){
+//            throw new EmailNotVerifiedException("일단아무렇게");
+//        }
+//
+//        String uid = decodedToken.getUid();
+//        String email = decodedToken.getEmail();
+
+        String uid = "testUid";
+        String email = "TestEmail@email.com";
+
+        LoginResponse loginResponse = authService.handleLogin(uid, email);
+
+
+
 
         //클라이언트 - Firebase Auth 간의 로그인을 통해 발행된 IdToken 추출
         //토큰은 일반적으로 Authorization 헤더에 담겨져 오며 "Bearer <token>"의 형태로 담겨져있음
@@ -39,7 +59,8 @@ public class AuthController {
         //발행한 2개의 토큰을 Response에 담아서 전송(어떤 방식으로 담을지 조사 해야함. 아직 생각 못 함)
 
 
-        return ResponseEntity.ok("ok");
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(ApiResponse.success(loginResponse));
 
         //구현중
     }

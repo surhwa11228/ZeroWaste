@@ -2,8 +2,9 @@ package com.chungwoo.zerowaste.user.service;
 
 import com.chungwoo.zerowaste.user.Request.UserRegistrationRequest;
 import com.chungwoo.zerowaste.user.dto.UserDto;
-import com.google.api.core.ApiFuture;
-import com.google.cloud.firestore.*;
+import com.google.cloud.firestore.DocumentReference;
+import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.Firestore;
 import com.google.firebase.cloud.FirestoreClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -64,19 +65,4 @@ public class UserService {
     }
 
 
-    //login은 auth 패키지의 Auth*로 구현
-    public String login(String emailId, String password) {
-        try {
-            Firestore db = FirestoreClient.getFirestore();
-            Query query = db.collection("users").whereEqualTo("emailId", emailId);
-            QuerySnapshot snapshot = query.get().get();
-            if (snapshot.isEmpty()) throw new RuntimeException("User not found");
-
-            String storedPassword = snapshot.getDocuments().get(0).getString("password");
-            if (!storedPassword.equals(password)) throw new RuntimeException("Invalid password");
-            return "Login successful";
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException("Login failed", e);
-        }
-    }
 }

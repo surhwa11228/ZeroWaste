@@ -8,6 +8,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -18,8 +19,8 @@ import java.util.Date;
 public class JwtProvider {
 
     private final Key secretKey;
-    private final long accessTokenExpiration;
-    private final long refreshTokenExpiration;
+    private final long accessTokenExpiration; // 30분
+    private final long refreshTokenExpiration;//14일;
 
     public JwtProvider(
             @Value("${jwt.secret}") String secret,
@@ -43,6 +44,7 @@ public class JwtProvider {
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
+
 
     public RefreshTokenSaveRequest createRefreshToken(String uid) {
         Date now = new Date();

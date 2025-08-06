@@ -1,8 +1,8 @@
 package com.chungwoo.zerowaste.user.controller;
 
+import com.chungwoo.zerowaste.user.Request.UserRegistrationRequest;
 import com.chungwoo.zerowaste.user.dto.UserDto;
 import com.chungwoo.zerowaste.user.service.UserService;
-import com.chungwoo.zerowaste.user.Request.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -28,12 +28,4 @@ public class UserController {
         return userService.getUserInfo(emailId);
     }
 
-    // JSON body 로 로그인 요청
-    @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public String login(@RequestBody LoginRequest req) {
-        return userService.login(
-                req.getEmailId(),
-                req.getPassword()
-        );
-    }
 }
