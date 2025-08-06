@@ -9,8 +9,12 @@ import 'screens/report_screen.dart';
 import 'screens/report_detail_screen.dart';
 import 'screens/mypage_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const ZeroWasteApp());
 }
 
@@ -21,7 +25,21 @@ class ZeroWasteApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'ZeroWaste (UI)',
+      title: 'ZeroWaste',
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snap.hasData) {
+            return const HomeScreen();
+          }
+          return const LoginScreen();
+        },
+      ),
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,

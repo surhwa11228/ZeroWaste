@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class MyPageScreen extends StatelessWidget {
   const MyPageScreen({super.key});
@@ -66,22 +67,34 @@ class MyPageScreen extends StatelessWidget {
           leading: const Icon(Icons.history),
           title: const Text('활동 내역'),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () {},
+          onTap: () {
+            // TODO: 활동 내역 화면으로 이동
+          },
         ),
         ListTile(
           leading: const Icon(Icons.settings_outlined),
           title: const Text('설정'),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () {},
+          onTap: () {
+            // TODO: 설정 화면으로 이동
+          },
         ),
         ListTile(
           leading: const Icon(Icons.logout),
           title: const Text('로그아웃'),
-          onTap: () => Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/login',
-            (r) => false,
-          ),
+          onTap: () async {
+            await AuthService().signOut();
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('로그아웃 되었습니다.')));
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (_) => false,
+              );
+            }
+          },
         ),
       ],
     );

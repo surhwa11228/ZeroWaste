@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,7 +11,46 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  bool obscurePassword = true;
+  final authService = AuthService();
+
+  bool _isLoading = false;
+
+  Future<void> _handleEmailLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      await authService.signInWithEmail(
+        emailController.text.trim(),
+        passwordController.text.trim(),
+      );
+      if (context.mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } catch (e) {
+      _showError('이메일 로그인 실패: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      await authService.signInWithGoogle();
+      if (context.mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } catch (e) {
+      _showError('Google 로그인 실패: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
 
   @override
   void dispose() {
@@ -21,105 +61,81 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 24),
-                      const Icon(
-                        Icons.recycling,
-                        size: 72,
-                        color: Colors.green,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'ZeroWaste',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 24),
-
-                      TextField(
-                        controller: emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: '이메일',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      TextField(
-                        controller: passwordController,
-                        obscureText: obscurePassword,
-                        decoration: InputDecoration(
-                          labelText: '비밀번호',
-                          border: const OutlineInputBorder(),
-                          suffixIcon: IconButton(
-                            onPressed: () => setState(
-                              () => obscurePassword = !obscurePassword,
-                            ),
-                            icon: Icon(
-                              obscurePassword
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {},
-                          child: const Text('비밀번호 찾기'),
-                        ),
-                      ),
-
-                      const Spacer(), // 버튼들을 아래로 밀기
-
-                      ElevatedButton(
-                        onPressed: () {
-                          // TODO: Firebase Auth(이메일) 연결 예정
-                        },
-                        child: const Text('로그인'),
-                      ),
-                      const SizedBox(height: 12),
-
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          // TODO: Google Sign-In 연결 예정
-                        },
-                        icon: const Icon(Icons.account_circle),
-                        label: const Text('Google로 로그인'),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/signup');
-                        },
-                        child: const Text('계정이 없으신가요? 회원가입'),
-                      ),
-                    ],
-                  ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ZeroWaste 로그인',
+                style: textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            );
-          },
+              const SizedBox(height: 32),
+
+              // 이메일 입력
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: '이메일',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 비밀번호 입력
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: '비밀번호',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 이메일 로그인 버튼
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleEmailLogin,
+                  child: _isLoading
+                      ? const CircularProgressIndicator()
+                      : const Text('이메일로 로그인'),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 구글 로그인 버튼
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.g_mobiledata),
+                  label: const Text('Google로 로그인'),
+                  onPressed: _isLoading ? null : _handleGoogleLogin,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 회원가입 이동
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('계정이 없으신가요?'),
+                  TextButton(
+                    onPressed: () => Navigator.pushNamed(context, '/signup'),
+                    child: const Text('회원가입'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
