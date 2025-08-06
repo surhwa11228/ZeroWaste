@@ -1,5 +1,6 @@
 package com.chungwoo.zerowaste.board.boarddto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 /**
@@ -18,18 +19,21 @@ public class BoardDto {
      * 게시글 제목
      * - 필수 입력
      */
-    private String title;
+    @NotBlank
+    String title;
 
     /**
      * 게시글 본문 내용
      * - 필수 입력
      */
+    @NotBlank
     private String content;
 
     /**
      * 게시글 카테고리
      * 예: "제보", "질문", "기타"
      */
+    @NotBlank
     private String category;
 
     /**
@@ -37,6 +41,7 @@ public class BoardDto {
      * "지역" = 작성자 지역 한정
      * "전체" = 전체 사용자 열람 가능
      */
+    @NotBlank
     private String scope;
 }
 

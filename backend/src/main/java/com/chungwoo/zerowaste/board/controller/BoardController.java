@@ -1,11 +1,13 @@
 package com.chungwoo.zerowaste.board.controller;
 
+import com.chungwoo.zerowaste.auth.dto.AuthUserDetails;
 import com.chungwoo.zerowaste.board.model.Post;
 import com.chungwoo.zerowaste.board.model.Comment;
 import com.chungwoo.zerowaste.board.boarddto.BoardDto;
 import com.chungwoo.zerowaste.board.boarddto.CommentDto;
-import com.chungwoo.zerowaste.board.boarddto.BoardSearchResponseDto; // ✅ 새 DTO import
+import com.chungwoo.zerowaste.board.boarddto.BoardGetResponse; // ✅ 새 DTO import
 import com.chungwoo.zerowaste.board.service.BoardService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -30,11 +32,11 @@ public class BoardController {
     @PostMapping  // ✅ "/post" -> "" 로 변경 (POST /api/board)
     public ResponseEntity<?> createPost(
             @RequestPart(value = "image", required = false) MultipartFile image, // ✅ 이미지 선택적
-            @RequestPart("post") BoardDto boardDto,
-            @AuthenticationPrincipal String userId) throws IOException {
+            @RequestPart("post") @Valid BoardDto boardDto,
+            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
 
         // 테스트용 UID 처리
-        String testUid = (userId == null) ? "testUid" : userId;
+        String testUid = (user.getUid() == null) ? "testUid" : user.getUid();
 
         String postId = boardService.post(image, boardDto, testUid);
 
@@ -49,10 +51,11 @@ public class BoardController {
 
     /** 게시글 목록 조회 */
     @GetMapping
-    public ResponseEntity<List<BoardSearchResponseDto>> getAllPosts(
+    public ResponseEntity<List<BoardGetResponse>> getPosts(
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String scope) {
-        return ResponseEntity.ok(boardService.getPosts(category, scope));
+            @RequestParam(required = false) String scope,
+            @RequestParam(required = false) Integer startAfter) {
+        return ResponseEntity.ok(boardService.getPosts(category, scope, startAfter));
     }
 
     /** 게시글 상세 조회 */

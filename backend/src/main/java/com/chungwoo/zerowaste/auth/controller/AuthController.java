@@ -11,58 +11,48 @@ import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.security.auth.login.LoginException;
 import java.util.Date;
 import java.util.Map;
-
+@Slf4j
 @RestController
 @RequiredArgsConstructor
+@RequestMapping("/api/auth")
 public class AuthController {
 
     private final AuthService authService;
 
 
-    @PostMapping("/api/auth/login")
+    @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestHeader("Authorization") String authorizationHeader) throws FirebaseAuthException {
-//        String idToken = extractToken(authorizationHeader);
-//        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
-//        if(!decodedToken.isEmailVerified()){
-//            throw new EmailNotVerifiedException("일단아무렇게");
-//        }
-//
-//        String uid = decodedToken.getUid();
-//        String email = decodedToken.getEmail();
+        log.debug("authorization {}", authorizationHeader);
+        String idToken = extractToken(authorizationHeader);
+        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
+        if(!decodedToken.isEmailVerified()){
+            throw new EmailNotVerifiedException("일단아무렇게");
+        }
 
-        String uid = "testUid";
-        String email = "TestEmail@email.com";
+
+
+        String uid = decodedToken.getUid();
+        String email = decodedToken.getEmail();
+
+//        String uid = "testUid";
+//        String email = "TestEmail@email.com";
 
         LoginResponse loginResponse = authService.handleLogin(uid, email);
-
-
-
-
-        //클라이언트 - Firebase Auth 간의 로그인을 통해 발행된 IdToken 추출
-        //토큰은 일반적으로 Authorization 헤더에 담겨져 오며 "Bearer <token>"의 형태로 담겨져있음
-        //FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken); 과 같이 토큰 검증
-        //검증된 토큰으로 이메일 인증 여부 체크. decodedToken.isEmailVerified();
-        //email 인증이 false인 경우 로그인 불가
-        //(Firebase Auth-google 등의 소셜 로그인의 경우 기본적으로 true,
-        //Firebase Auth-email의 경우 클라이언트에서 Firebase Auth api를 통해 email 인증 요청)
-        //idToken의 uid를 통해 db의 user 조회. 없다면 새 user 생성 (uid(documentID로 설정), email, createAt etc)
-        //액세스 토큰과 리프레시 토큰 발급, 리프레시 토큰은 db에 저장
-        //발행한 2개의 토큰을 Response에 담아서 전송(어떤 방식으로 담을지 조사 해야함. 아직 생각 못 함)
-
 
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(loginResponse));
 
-        //구현중
     }
 
 

@@ -4,23 +4,28 @@ import com.chungwoo.zerowaste.board.model.Post;
 import com.chungwoo.zerowaste.board.model.Comment;
 import com.chungwoo.zerowaste.board.boarddto.BoardDto;
 import com.chungwoo.zerowaste.board.boarddto.CommentDto;
-import com.chungwoo.zerowaste.board.boarddto.BoardSearchResponseDto;
+import com.chungwoo.zerowaste.board.boarddto.BoardGetResponse;
+import com.chungwoo.zerowaste.upload.UploadConstants;
 import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
-import com.chungwoo.zerowaste.utils.StorageUploadUtils;
+import com.chungwoo.zerowaste.upload.service.StorageImageUploader;
+import com.chungwoo.zerowaste.utils.ListConverter;
+import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BoardService {
 
+    private final StorageImageUploader imageUploader;
     /** 게시글 작성 */
     public String post(MultipartFile image, BoardDto boardDto, String userId){
         Firestore db = FirestoreClient.getFirestore();
@@ -53,7 +58,7 @@ public class BoardService {
         String imageUrl = null;
         try {
             if (image != null && !image.isEmpty()) {
-                ImageUploadResult imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
+                ImageUploadResult imageResponse = imageUploader.upload(UploadConstants.BOARD, image);
                 imageUrl = imageResponse.getUrl();
             }
         } catch (Exception e) {
@@ -89,44 +94,30 @@ public class BoardService {
     }
 
     /** 게시글 목록 조회 */
-    public List<BoardSearchResponseDto> getPosts(String category, String scope) {
-        Firestore db = FirestoreClient.getFirestore();
-        List<BoardSearchResponseDto> posts = new ArrayList<>();
-
+    public List<BoardGetResponse> getPosts(String category, String scope, Integer startAfter) {
         try {
-            Query query = db.collection("posts")
-                    .orderBy("createdAt", Query.Direction.DESCENDING);
-
-            List<QueryDocumentSnapshot> docs = query.get().get().getDocuments();
-
-            for (QueryDocumentSnapshot doc : docs) {
-                Post post = doc.toObject(Post.class);
-
-                if ((category == null || post.getCategory().equals(category)) &&
-                        (scope == null || post.getScope().equals(scope))) {
-
-                    posts.add(BoardSearchResponseDto.builder()
-                            .id(post.getId())
-                            .title(post.getTitle())
-                            .content(post.getContent())
-                            .category(post.getCategory())
-                            .scope(post.getScope())
-                            .imageUrl(post.getImageUrl())
-                            .createdAt(post.getCreatedAt())
-                            .pinned(post.isPinned())
-                            .userId(post.getUserId())
-                            .build());
-                }
+            Firestore db = FirestoreClient.getFirestore();
+            Query query = db.collection("posts");
+            if(category != null){
+                query = query.whereEqualTo("category", category);
             }
+            if(scope != null){
+                query = query.whereEqualTo("scope", scope);
+            }
+            query = query.orderBy("createdAt", Query.Direction.DESCENDING);
+            if(startAfter != null){
+                query = query.startAfter(startAfter);
+            }
+            query = query.limit(20);
 
-            // 🔹 상단 고정글 우선 정렬
-            posts.sort(Comparator.comparing(BoardSearchResponseDto::isPinned).reversed()
-                    .thenComparing(BoardSearchResponseDto::getCreatedAt).reversed());
+            ApiFuture<QuerySnapshot> querySnapshot = query.get();
+            List<QueryDocumentSnapshot> docs = querySnapshot.get().getDocuments();
 
+            return ListConverter.convertDocumentsToList(docs, this::mapToBoardResponse);
         } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+            log.error("stackTrace: ", e);
+            throw new RuntimeException(e);
         }
-        return posts;
     }
 
     /** 게시글 상세 조회 */
@@ -155,7 +146,7 @@ public class BoardService {
             String imageUrl = oldPost.getImageUrl();
             if (image != null && !image.isEmpty()) {
                 try {
-                    ImageUploadResult imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
+                    ImageUploadResult imageResponse = imageUploader.upload(UploadConstants.BOARD, image);
                     imageUrl = imageResponse.getUrl();
                 } catch (Exception e) {
                     System.out.println("⚠ 이미지 업로드 실패: " + e.getMessage());
@@ -267,4 +258,34 @@ public class BoardService {
             e.printStackTrace();
         }
     }
+
+
+    private BoardGetResponse mapToBoardResponse(QueryDocumentSnapshot document) {
+        String id = document.getId();
+        String title = document.getString("title");
+        String content = document.getString("content");
+        String category = document.getString("category");
+        String scope = document.getString("scope");
+        String imageUrl = document.getString("imageUrl");
+        String userId = document.getString("userId");
+        Long createdAt = document.get("createdAt", Long.class);
+
+        // 필수 필드 검증 (필요 시)
+        if (title == null || content == null || category == null || scope == null) {
+            log.warn("필수 게시글 정보 누락 documentId: {}", id);
+            return null;
+        }
+
+        return BoardGetResponse.builder()
+                .id(id)
+                .title(title)
+                .content(content)
+                .category(category)
+                .scope(scope)
+                .imageUrl(imageUrl)
+                .createdAt(createdAt)
+                .userId(userId)
+                .build();
+    }
+
 }

@@ -17,7 +17,7 @@ import java.io.IOException;
 public class FirebaseConfig {
 
     private final FirebaseStorageProperties firebaseStorageProperties;
-    private final FirestoreProperties firestoreProperties;
+//    private final FirestoreProperties firestoreProperties;
 
     @PostConstruct
     public void init() throws IOException {
