@@ -4,6 +4,7 @@ import com.chungwoo.zerowaste.board.model.Post;
 import com.chungwoo.zerowaste.board.model.Comment;
 import com.chungwoo.zerowaste.board.boarddto.BoardDto;
 import com.chungwoo.zerowaste.board.boarddto.CommentDto;
+import com.chungwoo.zerowaste.board.boarddto.BoardSearchResponseDto;
 import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
 import com.chungwoo.zerowaste.utils.StorageUploadUtils;
 import com.google.cloud.firestore.*;
@@ -20,21 +21,46 @@ import java.util.concurrent.ExecutionException;
 @RequiredArgsConstructor
 public class BoardService {
 
-    // ==================== 📌 게시글 CRUD ====================
-
     /** 게시글 작성 */
-    public String post(MultipartFile image, BoardDto boardDto, String userId) throws IOException {
-        Firestore db = FirestoreClient.getFirestore("zerowaste");
-        String postId = UUID.randomUUID().toString(); //postId는 auto increase Number 구현해서 그거 참조
+    public String post(MultipartFile image, BoardDto boardDto, String userId){
+        Firestore db = FirestoreClient.getFirestore();
 
-        //Test
-        String testUid = "testUid";
+        // 🔹 Firestore 트랜잭션으로 auto-increment postId 생성
+        Long postIdLong;
+        try {
+            DocumentReference counterRef = db.collection("counters").document("postId");
+            postIdLong = db.runTransaction(transaction -> {
+                DocumentSnapshot snapshot = transaction.get(counterRef).get();
 
-        ImageUploadResult imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
-        String imageUrl = imageResponse.getUrl();
+                Long currentValue = snapshot.getLong("value");
+                if (currentValue == null) currentValue = 0L;
 
+                Long nextValue = currentValue + 1;
+                transaction.set(counterRef, Collections.singletonMap("value", nextValue));
 
-        //매핑 완성하기*****************
+                return nextValue;
+            }).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("게시글 ID 생성 실패 (스레드 인터럽트)", e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("게시글 ID 생성 실패", e);
+        }
+
+        String postId = String.valueOf(postIdLong);
+
+        // 🔹 이미지 업로드 (null이면 기본값 처리)
+        String imageUrl = null;
+        try {
+            if (image != null && !image.isEmpty()) {
+                ImageUploadResult imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
+                imageUrl = imageResponse.getUrl();
+            }
+        } catch (Exception e) {
+            System.out.println("⚠ 이미지 업로드 실패: " + e.getMessage());
+        }
+
+        // 🔹 Firestore에 저장할 Map
         Map<String, Object> post = new HashMap<>();
         post.put("id", postId);
         post.put("title", boardDto.getTitle());
@@ -42,43 +68,60 @@ public class BoardService {
         post.put("imageUrl", imageUrl);
         post.put("userId", userId);
         post.put("scope", boardDto.getScope());
+        post.put("category", boardDto.getCategory());
+        post.put("createdAt", System.currentTimeMillis()); // ✅ Long으로 통일
+        post.put("pinned", false);
 
+        System.out.println("🔥 Firestore 저장 직전: " + post);
 
-//        Post post = Post.builder()
-//                .id(postId)
-//                .userId(testUid)//test
-//                .title(boardDto.getTitle())
-//                .content(boardDto.getContent())
-//                .category(boardDto.getCategory())
-//                .scope(boardDto.getScope())
-//                .imageUrl(imageUrl)
-//                .createdAt(System.currentTimeMillis())
-//                .pinned(false)
-//                .build();
+        try {
+            // ✅ posts 컬렉션에 문서 생성 (컬렉션이 없으면 Firestore가 자동 생성)
+            db.collection("posts").document(postId).set(post).get();
+            System.out.println("✅ Firestore 저장 완료: posts/" + postId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("게시글 저장 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("게시글 저장 실패: " + e.getMessage(), e);
+        }
 
-        db.collection("posts").document(postId).set(post);
         return postId;
     }
 
-    /** 게시글 목록 조회 (카테고리·스코프 필터링 + 고정글 우선) */
-    //List<Post>가 아니라 별도의 dto 구현 (예 BoardSearchResponse)
-    public List<Post> getPosts(String category, String scope) {
+    /** 게시글 목록 조회 */
+    public List<BoardSearchResponseDto> getPosts(String category, String scope) {
         Firestore db = FirestoreClient.getFirestore();
-        List<Post> posts = new ArrayList<>();
+        List<BoardSearchResponseDto> posts = new ArrayList<>();
 
         try {
-            List<QueryDocumentSnapshot> docs = db.collection("posts").get().get().getDocuments();
+            Query query = db.collection("posts")
+                    .orderBy("createdAt", Query.Direction.DESCENDING);
+
+            List<QueryDocumentSnapshot> docs = query.get().get().getDocuments();
+
             for (QueryDocumentSnapshot doc : docs) {
                 Post post = doc.toObject(Post.class);
+
                 if ((category == null || post.getCategory().equals(category)) &&
                         (scope == null || post.getScope().equals(scope))) {
-                    posts.add(post);
+
+                    posts.add(BoardSearchResponseDto.builder()
+                            .id(post.getId())
+                            .title(post.getTitle())
+                            .content(post.getContent())
+                            .category(post.getCategory())
+                            .scope(post.getScope())
+                            .imageUrl(post.getImageUrl())
+                            .createdAt(post.getCreatedAt())
+                            .pinned(post.isPinned())
+                            .userId(post.getUserId())
+                            .build());
                 }
             }
 
-            // 상단 고정글 우선 정렬 → 최신순
-            posts.sort(Comparator.comparing(Post::isPinned).reversed()
-                    .thenComparing(Post::getCreatedAt).reversed());
+            // 🔹 상단 고정글 우선 정렬
+            posts.sort(Comparator.comparing(BoardSearchResponseDto::isPinned).reversed()
+                    .thenComparing(BoardSearchResponseDto::getCreatedAt).reversed());
 
         } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
@@ -109,8 +152,15 @@ public class BoardService {
             Post oldPost = snapshot.toObject(Post.class);
             if (!oldPost.getUserId().equals(userId)) throw new RuntimeException("본인 글만 수정 가능");
 
-            // (추후 이미지 업데이트 로직 추가)
-            String imageUrl = (image != null) ? "uploaded/image/path" : oldPost.getImageUrl();
+            String imageUrl = oldPost.getImageUrl();
+            if (image != null && !image.isEmpty()) {
+                try {
+                    ImageUploadResult imageResponse = StorageUploadUtils.imageUpload(StorageUploadUtils.BOARD, image);
+                    imageUrl = imageResponse.getUrl();
+                } catch (Exception e) {
+                    System.out.println("⚠ 이미지 업로드 실패: " + e.getMessage());
+                }
+            }
 
             Post updatedPost = Post.builder()
                     .id(id)
@@ -124,7 +174,7 @@ public class BoardService {
                     .pinned(oldPost.isPinned())
                     .build();
 
-            ref.set(updatedPost);
+            ref.set(updatedPost).get(); // 동기 저장
             return updatedPost;
 
         } catch (InterruptedException | ExecutionException e) {
@@ -144,7 +194,7 @@ public class BoardService {
             Post post = snapshot.toObject(Post.class);
             if (!post.getUserId().equals(userId)) throw new RuntimeException("본인 글만 삭제 가능");
 
-            ref.delete();
+            ref.delete().get(); // 동기 삭제
         } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
         }
@@ -152,7 +202,6 @@ public class BoardService {
 
     // ==================== 💬 댓글/대댓글 CRUD ====================
 
-    /** 댓글 작성 */
     public Comment addComment(String postId, CommentDto dto, String userId) {
         Firestore db = FirestoreClient.getFirestore();
         String commentId = UUID.randomUUID().toString();
@@ -162,16 +211,20 @@ public class BoardService {
                 .userId(userId)
                 .content(dto.getContent())
                 .parentId(dto.getParentId())
-                .createdAt(System.currentTimeMillis())
+                .createdAt(new Date(System.currentTimeMillis()))
                 .build();
 
-        db.collection("posts").document(postId)
-                .collection("comments").document(commentId).set(comment);
+        try {
+            db.collection("posts").document(postId)
+                    .collection("comments").document(commentId)
+                    .set(comment).get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
 
         return comment;
     }
 
-    /** 댓글 목록 조회 */
     public List<Comment> getComments(String postId) {
         Firestore db = FirestoreClient.getFirestore();
         List<Comment> comments = new ArrayList<>();
@@ -186,7 +239,6 @@ public class BoardService {
                 comments.add(doc.toObject(Comment.class));
             }
 
-            // 최신순 정렬
             comments.sort(Comparator.comparing(Comment::getCreatedAt).reversed());
 
         } catch (InterruptedException | ExecutionException e) {
@@ -195,7 +247,6 @@ public class BoardService {
         return comments;
     }
 
-    /** 댓글 삭제 (본인만) */
     public void deleteComment(String postId, String commentId, String userId) {
         Firestore db = FirestoreClient.getFirestore();
         try {
@@ -211,7 +262,7 @@ public class BoardService {
             if (!comment.getUserId().equals(userId))
                 throw new RuntimeException("본인 댓글만 삭제 가능");
 
-            commentRef.delete();
+            commentRef.delete().get();
         } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
         }

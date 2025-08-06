@@ -17,6 +17,4 @@ public class ReportSubmissionRequest {
 
     //"CIGARETTE_BUTT", "GENERAL_WASTE", "FOOD_WASTE", "OTHERS"
     @NotBlank private String wasteCategory;
-
-    @NotNull private Date reportedAt;
 }

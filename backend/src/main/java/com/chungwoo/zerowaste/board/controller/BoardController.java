@@ -1,10 +1,10 @@
 package com.chungwoo.zerowaste.board.controller;
 
-import com.chungwoo.zerowaste.auth.dto.AuthUserDetails;
 import com.chungwoo.zerowaste.board.model.Post;
 import com.chungwoo.zerowaste.board.model.Comment;
 import com.chungwoo.zerowaste.board.boarddto.BoardDto;
 import com.chungwoo.zerowaste.board.boarddto.CommentDto;
+import com.chungwoo.zerowaste.board.boarddto.BoardSearchResponseDto; // ✅ 새 DTO import
 import com.chungwoo.zerowaste.board.service.BoardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +14,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/board")
@@ -25,57 +27,64 @@ public class BoardController {
     // ==================== 📌 게시글 CRUD ====================
 
     /** 게시글 작성 */
-    @PostMapping("/post")
+    @PostMapping  // ✅ "/post" -> "" 로 변경 (POST /api/board)
     public ResponseEntity<?> createPost(
-            @RequestPart("image") MultipartFile image,
+            @RequestPart(value = "image", required = false) MultipartFile image, // ✅ 이미지 선택적
             @RequestPart("post") BoardDto boardDto,
             @AuthenticationPrincipal String userId) throws IOException {
 
-        //test
-        String testUid;
-        if(userId == null){
-            testUid = "testUid";
-        }
-        else {
-            testUid = userId;
-        }
+        // 테스트용 UID 처리
+        String testUid = (userId == null) ? "testUid" : userId;
 
         String postId = boardService.post(image, boardDto, testUid);
-        return ResponseEntity.ok(postId);
+
+        // ✅ JSON 응답으로 반환
+        Map<String, Object> response = new HashMap<>();
+        response.put("code", 200);
+        response.put("msg", "게시글 등록 성공");
+        response.put("postId", postId);
+
+        return ResponseEntity.ok(response);
     }
 
     /** 게시글 목록 조회 */
     @GetMapping
-    public ResponseEntity<List<Post>> getAllPosts(
+    public ResponseEntity<List<BoardSearchResponseDto>> getAllPosts(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String scope) {
         return ResponseEntity.ok(boardService.getPosts(category, scope));
     }
 
     /** 게시글 상세 조회 */
-    @GetMapping("/{id}")
+    @GetMapping("/posts/{id}")
     public ResponseEntity<Post> getPost(@PathVariable String id) {
-        return ResponseEntity.ok(boardService.getPostById(id));
+        Post post = boardService.getPostById(id);
+        if (post == null) {
+            return ResponseEntity.notFound().build(); // ✅ 404 처리
+        }
+        return ResponseEntity.ok(post);
     }
 
-    /** 게시글 수정 */
-    @PostMapping("/update/{id}")
+    /** 게시글 수정 (나중에 PUT으로 변경 권장) */
+    @PutMapping("/update/{id}") // ✅ PUT으로 수정
     public ResponseEntity<Post> updatePost(
             @PathVariable String id,
             @RequestPart(value = "image", required = false) MultipartFile image,
-            @RequestPart(value = "post") BoardDto boardDto,
-            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
+            @RequestPart("post") BoardDto boardDto,
+            @AuthenticationPrincipal String userId) {
 
-        return ResponseEntity.ok(boardService.updatePost(id, image, boardDto, user.getUid()));
+        String testUid = (userId == null) ? "testUid" : userId;
+        return ResponseEntity.ok(boardService.updatePost(id, image, boardDto, testUid));
     }
 
     /** 게시글 삭제 */
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<String> deletePost(
             @PathVariable String id,
-            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
+            @AuthenticationPrincipal String userId) {
 
-        boardService.deletePost(id, user.getUid());
+        String testUid = (userId == null) ? "testUid" : userId;
+        boardService.deletePost(id, testUid);
         return ResponseEntity.ok("게시글이 삭제되었습니다.");
     }
 
@@ -86,9 +95,10 @@ public class BoardController {
     public ResponseEntity<Comment> addComment(
             @PathVariable String postId,
             @RequestBody CommentDto commentDto,
-            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
+            @AuthenticationPrincipal String userId) {
 
-        return ResponseEntity.ok(boardService.addComment(postId, commentDto, user.getUid()));
+        String testUid = (userId == null) ? "testUid" : userId;
+        return ResponseEntity.ok(boardService.addComment(postId, commentDto, testUid));
     }
 
     /** 댓글 목록 조회 */
@@ -102,9 +112,10 @@ public class BoardController {
     public ResponseEntity<String> deleteComment(
             @PathVariable String postId,
             @PathVariable String commentId,
-            @AuthenticationPrincipal AuthUserDetails user) throws IOException {
+            @AuthenticationPrincipal String userId) {
 
-        boardService.deleteComment(postId, commentId, user.getUid());
+        String testUid = (userId == null) ? "testUid" : userId;
+        boardService.deleteComment(postId, commentId, testUid);
         return ResponseEntity.ok("댓글이 삭제되었습니다.");
     }
 }

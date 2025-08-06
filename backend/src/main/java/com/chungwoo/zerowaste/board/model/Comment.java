@@ -1,17 +1,18 @@
 package com.chungwoo.zerowaste.board.model;
 
 import lombok.*;
+import java.util.Date;
 
 /**
  * 게시판 댓글(Comment)을 표현하는 모델 클래스
  * - 단일 댓글뿐만 아니라 대댓글(답글)까지 표현 가능
  * - Firestore 또는 DB에 저장될 댓글 데이터를 담기 위한 DTO/Entity 역할
  */
-@Getter              // Lombok: 모든 필드에 대한 Getter 메서드 자동 생성
-@Setter              // Lombok: 모든 필드에 대한 Setter 메서드 자동 생성
-@NoArgsConstructor   // Lombok: 파라미터 없는 기본 생성자 자동 생성
-@AllArgsConstructor  // Lombok: 모든 필드를 초기화하는 생성자 자동 생성
-@Builder             // Lombok: Builder 패턴 사용 가능
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Comment {
 
     /**
@@ -40,7 +41,8 @@ public class Comment {
     private String parentId;
 
     /**
-     * 댓글 작성 시간 (UNIX Timestamp, millisecond 단위)
+     * 댓글 작성 시간 (Date)
+     * Firestore에 저장 시 Timestamp로 자동 변환됨
      */
-    private Long createdAt;
+    private Date createdAt;
 }

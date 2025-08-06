@@ -1,15 +1,14 @@
 package com.chungwoo.zerowaste.api;
 
-public class ApiResponse <T>{
-    private int status;
-    private String message;
-    private T data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
-    public ApiResponse(int status, String message, T data) {
-        this.status = status;
-        this.message = message;
-        this.data = data;
-    }
+@Getter
+@AllArgsConstructor
+public class ApiResponse <T>{
+    private final int status;
+    private final String message;
+    private final T data;
 
     public static <T> ApiResponse<T> success(T data){
         return new ApiResponse<>(200, "success", data);
@@ -19,7 +18,7 @@ public class ApiResponse <T>{
         return new ApiResponse<>(201, "created", data);
     }
 
-    public static <T> ApiResponse<T> noContent(T data){
+    public static <T> ApiResponse<T> noContent(){
         return new ApiResponse<>(204, "noContent", null);
     }
 
