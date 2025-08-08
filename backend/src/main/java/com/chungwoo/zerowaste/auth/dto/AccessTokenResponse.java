@@ -5,8 +5,6 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class RefreshTokenSaveRequest {
-    private String uid;
-    private String refreshToken;
-    private Long expiration;
+public class AccessTokenResponse {
+    private String accessToken;
 }

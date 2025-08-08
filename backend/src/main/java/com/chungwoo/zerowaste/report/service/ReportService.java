@@ -1,11 +1,10 @@
 package com.chungwoo.zerowaste.report.service;
 
 import com.chungwoo.zerowaste.auth.dto.AuthUserDetails;
-import com.chungwoo.zerowaste.exception.exceptions.ReportSearchFailedException;
-import com.chungwoo.zerowaste.exception.exceptions.ReportSubmissionFailedException;
+import com.chungwoo.zerowaste.exception.exceptions.FirestoreOperationException;
 import com.chungwoo.zerowaste.report.dto.DetailedReportResponse;
-import com.chungwoo.zerowaste.report.dto.ReportSearchRequest;
 import com.chungwoo.zerowaste.report.dto.ReportResponse;
+import com.chungwoo.zerowaste.report.dto.ReportSearchRequest;
 import com.chungwoo.zerowaste.report.dto.ReportSubmissionRequest;
 import com.chungwoo.zerowaste.utils.GeoUtils;
 import com.chungwoo.zerowaste.utils.ListConverter;
@@ -17,7 +16,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
@@ -58,7 +59,7 @@ public class ReportService {
 
         } catch (InterruptedException | ExecutionException e) {
             Thread.currentThread().interrupt();
-            throw new ReportSubmissionFailedException("제보 저장 실패", e);
+            throw new FirestoreOperationException("제보 저장 실패", e);
         }
     }
 
@@ -107,7 +108,7 @@ public class ReportService {
             return ListConverter.convertDocumentsToList(documents, this::mapToReportResponse);
 
         } catch (ExecutionException | InterruptedException e) {
-            throw new ReportSearchFailedException("제보 검색 실패", e);
+            throw new FirestoreOperationException("제보 검색 실패", e);
         }
     }
 
@@ -129,7 +130,7 @@ public class ReportService {
             return ListConverter.convertDocumentsToList(documents, this::mapToDetailedReportResponse);
         }
         catch (ExecutionException | InterruptedException e) {
-            throw new ReportSearchFailedException("제보 검색 실패", e);
+            throw new FirestoreOperationException("제보 검색 실패", e);
         }
     }
 
