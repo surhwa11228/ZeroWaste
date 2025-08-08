@@ -8,7 +8,6 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -57,7 +56,7 @@ public class JwtProvider {
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
 
-        return new RefreshTokenSaveRequest(uid, refreshToken, expiration);
+        return new RefreshTokenSaveRequest(uid, refreshToken, expiration.getTime());
     }
 
     public Claims parseToken(String token) {
