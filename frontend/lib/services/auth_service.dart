@@ -54,7 +54,7 @@ class AuthService {
   //서버에 ID 토큰 전송 → accessToken / refreshToken 저장
   Future<void> _authenticateWithServer(String idToken) async {
     final response = await http.post(
-      Uri.parse('http://192.168.45.92:8080/api/auth/login'),
+      Uri.parse('http://192.168.45.141:8080/api/auth/login'),
       headers: {
         'Authorization': 'Bearer $idToken',
         'Content-Type': 'application/json',

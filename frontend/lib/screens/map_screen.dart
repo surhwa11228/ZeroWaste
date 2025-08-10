@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
@@ -20,30 +19,6 @@ class _MapScreenState extends State<MapScreen> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))
-      ..addJavaScriptChannel(
-        'KakaoBridge',
-        onMessageReceived: (msg) {
-          final m = msg.message;
-          if (m == 'KAKAO_SDK_LOADED')
-            _toast('Kakao SDK loaded');
-          else if (m == 'KAKAO_SDK_ERROR')
-            _toast('Kakao SDK load FAILED (도메인/키 확인)');
-          else if (m == 'KAKAO_NOT_READY')
-            _toast('Kakao SDK not ready');
-          else if (m == 'MAP_INIT_DONE')
-            _toast('Map initialized');
-          else {
-            try {
-              final data = jsonDecode(m);
-              if (data['type'] == 'map_click') {
-                _toast('클릭: ${data['lat']}, ${data['lng']}');
-              } else if (data['type'] == 'js_error') {
-                _toast('JS 오류: ${data['msg']}');
-              }
-            } catch (_) {}
-          }
-        },
-      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
