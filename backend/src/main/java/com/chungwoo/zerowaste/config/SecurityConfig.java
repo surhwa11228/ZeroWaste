@@ -3,6 +3,7 @@ package com.chungwoo.zerowaste.config;
 import com.chungwoo.zerowaste.auth.JwtAuthenticationFilter;
 import com.chungwoo.zerowaste.auth.JwtProvider;
 import com.chungwoo.zerowaste.auth.LoggingFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,6 +43,19 @@ public class SecurityConfig {
                         sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**").permitAll()
                                 .anyRequest().authenticated())
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            String body = String.format(
+                                    "{\"status\":%d,\"message\":\"%s\"}",
+                                    HttpServletResponse.SC_UNAUTHORIZED,
+                                    "인증이 필요합니다."
+                            );
+                            response.getWriter().write(body);
+                        })
+                )
                 .addFilterBefore(new LoggingFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new JwtAuthenticationFilter(jwtProvider),
                         UsernamePasswordAuthenticationFilter.class)

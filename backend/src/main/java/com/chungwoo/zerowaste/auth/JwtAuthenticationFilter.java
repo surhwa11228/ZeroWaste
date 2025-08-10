@@ -3,6 +3,7 @@ package com.chungwoo.zerowaste.auth;
 import com.chungwoo.zerowaste.auth.dto.AuthUserDetails;
 import com.chungwoo.zerowaste.utils.TokenUtils;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,17 +32,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         log.debug("doFilterInternal");
         String token = TokenUtils.extractBearerToken(request);
 
-
-        if(token != null && jwtProvider.validateToken(token)) {
-            Claims claims = jwtProvider.parseToken(token);
-            String uid = claims.getSubject();
-            String email = claims.get("email", String.class);
-            AuthUserDetails userDetails = new AuthUserDetails(uid, email);
-
-            Authentication auth =
-                    new UsernamePasswordAuthenticationToken(userDetails, null, List.of());
-
-            SecurityContextHolder.getContext().setAuthentication(auth);
+        if (token != null) {
+            try {
+                Claims claims = jwtProvider.parseToken(token); // 무효면 JwtException
+                AuthUserDetails user = new AuthUserDetails(claims.getSubject(), claims.get("email", String.class));
+                Authentication auth = new UsernamePasswordAuthenticationToken(user, null, List.of());
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            } catch (JwtException | IllegalArgumentException e) {
+                // “토큰이 존재하지만 유효하지 않음” → 인증 예외로 위임 → EntryPoint가 401 반환
+                throw new org.springframework.security.core.AuthenticationException("Invalid JWT", e) {};
+            }
         }
 
         filterChain.doFilter(request, response);

@@ -57,8 +57,10 @@ public class ReportService {
                     request.getWasteCategory()
             );
 
-        } catch (InterruptedException | ExecutionException e) {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("제보 저장 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
             throw new FirestoreOperationException("제보 저장 실패", e);
         }
     }
@@ -105,9 +107,13 @@ public class ReportService {
             List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
 
             //리스트로 만들어 반환
-            return ListConverter.convertDocumentsToList(documents, this::mapToReportResponse);
+            return ListConverter.convertDocumentsToList
+                    (documents, this::mapToReportResponse);
 
-        } catch (ExecutionException | InterruptedException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("제보 검색 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
             throw new FirestoreOperationException("제보 검색 실패", e);
         }
     }
@@ -127,9 +133,13 @@ public class ReportService {
             ApiFuture<QuerySnapshot> querySnapshot = query.get();
             List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
 
-            return ListConverter.convertDocumentsToList(documents, this::mapToDetailedReportResponse);
-        }
-        catch (ExecutionException | InterruptedException e) {
+            return ListConverter.convertDocumentsToList
+                    (documents, this::mapToDetailedReportResponse);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("제보 검색 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
             throw new FirestoreOperationException("제보 검색 실패", e);
         }
     }

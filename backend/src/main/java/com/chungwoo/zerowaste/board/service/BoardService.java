@@ -1,19 +1,19 @@
 package com.chungwoo.zerowaste.board.service;
 
-import com.chungwoo.zerowaste.board.model.Post;
+import com.chungwoo.zerowaste.board.boarddto.*;
 import com.chungwoo.zerowaste.board.model.Comment;
-import com.chungwoo.zerowaste.board.boarddto.BoardDto;
-import com.chungwoo.zerowaste.board.boarddto.CommentDto;
-import com.chungwoo.zerowaste.board.boarddto.BoardGetResponse;
+import com.chungwoo.zerowaste.exception.exceptions.BusinessException;
+import com.chungwoo.zerowaste.exception.exceptions.FirestoreOperationException;
 import com.chungwoo.zerowaste.upload.UploadConstants;
-import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
 import com.chungwoo.zerowaste.upload.service.StorageImageUploader;
+import com.chungwoo.zerowaste.user.service.UserService;
 import com.chungwoo.zerowaste.utils.ListConverter;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,83 +26,66 @@ import java.util.concurrent.ExecutionException;
 public class BoardService {
 
     private final StorageImageUploader imageUploader;
+    private final UserService userService;
     /** 게시글 작성 */
-    public String post(MultipartFile image, BoardDto boardDto, String userId){
-        Firestore db = FirestoreClient.getFirestore();
-
-        // 🔹 Firestore 트랜잭션으로 auto-increment postId 생성
-        Long postIdLong;
+    public PostResult post(List<MultipartFile> images,
+                           String boardName,
+                           PostRequest postRequest,
+                           String uid) {
         try {
-            DocumentReference counterRef = db.collection("counters").document("postId");
-            postIdLong = db.runTransaction(transaction -> {
+            Firestore db = FirestoreClient.getFirestore();
+
+            List<Map<String,String>> savedImages = imageUploader.upload(UploadConstants.BOARD, images);
+
+            // 🔹 게시글 정보 생성
+            Map<String, Object> post = new HashMap<>();
+            post.put("title", postRequest.getTitle());
+            post.put("content", postRequest.getContent());
+            post.put("images", savedImages);
+            post.put("uid", uid);
+            post.put("nickname", userService.getNickname(uid));
+            post.put("boardName", boardName);  // scope 대신 boardName으로 구별
+            post.put("category", postRequest.getCategory());
+            post.put("createdAt", System.currentTimeMillis());
+
+            // 🔹 Firestore 트랜잭션으로 게시글 ID 생성 및 게시글 저장
+            String postId = db.runTransaction(transaction -> {
+                // 🔹 게시글 ID 생성
+                DocumentReference counterRef = db.collection("counters").document("postId");
                 DocumentSnapshot snapshot = transaction.get(counterRef).get();
 
                 Long currentValue = snapshot.getLong("value");
                 if (currentValue == null) currentValue = 0L;
 
                 Long nextValue = currentValue + 1;
-                transaction.set(counterRef, Collections.singletonMap("value", nextValue));
+                transaction.set(counterRef, Collections.singletonMap("value", nextValue)); // ID 증가
 
-                return nextValue;
-            }).get();
+                // 🔹 Firestore에 게시글 저장
+                transaction.set(db.collection("posts").document(String.valueOf(nextValue)), post); // 게시글 저장
+
+                return String.valueOf(nextValue);  // 트랜잭션에서 새 게시글 ID 반환
+            }).get();  // blocking
+
+            return new PostResult(postId, boardName);  // 게시글 ID와 boardName 반환
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("게시글 ID 생성 실패 (스레드 인터럽트)", e);
+            throw new RuntimeException("트랜잭션 실패 - 스레드 인터럽트", e);
         } catch (ExecutionException e) {
-            throw new RuntimeException("게시글 ID 생성 실패", e);
+            throw new RuntimeException("트랜잭션 실패", e);
         }
-
-        String postId = String.valueOf(postIdLong);
-
-        // 🔹 이미지 업로드 (null이면 기본값 처리)
-        String imageUrl = null;
-        try {
-            if (image != null && !image.isEmpty()) {
-                ImageUploadResult imageResponse = imageUploader.upload(UploadConstants.BOARD, image);
-                imageUrl = imageResponse.getUrl();
-            }
-        } catch (Exception e) {
-            System.out.println("⚠ 이미지 업로드 실패: " + e.getMessage());
-        }
-
-        // 🔹 Firestore에 저장할 Map
-        Map<String, Object> post = new HashMap<>();
-        post.put("id", postId);
-        post.put("title", boardDto.getTitle());
-        post.put("content", boardDto.getContent());
-        post.put("imageUrl", imageUrl);
-        post.put("userId", userId);
-        post.put("scope", boardDto.getScope());
-        post.put("category", boardDto.getCategory());
-        post.put("createdAt", System.currentTimeMillis()); // ✅ Long으로 통일
-        post.put("pinned", false);
-
-        System.out.println("🔥 Firestore 저장 직전: " + post);
-
-        try {
-            // ✅ posts 컬렉션에 문서 생성 (컬렉션이 없으면 Firestore가 자동 생성)
-            db.collection("posts").document(postId).set(post).get();
-            System.out.println("✅ Firestore 저장 완료: posts/" + postId);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("게시글 저장 중 인터럽트 발생", e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException("게시글 저장 실패: " + e.getMessage(), e);
-        }
-
-        return postId;
     }
 
     /** 게시글 목록 조회 */
-    public List<BoardGetResponse> getPosts(String category, String scope, Integer startAfter) {
+    public List<PostResponse> getPosts(String boardName, String category, Integer startAfter) {
         try {
             Firestore db = FirestoreClient.getFirestore();
             Query query = db.collection("posts");
+            if(boardName != null){
+                query = query.whereEqualTo("boardName", boardName);
+            }
             if(category != null){
                 query = query.whereEqualTo("category", category);
-            }
-            if(scope != null){
-                query = query.whereEqualTo("scope", scope);
             }
             query = query.orderBy("createdAt", Query.Direction.DESCENDING);
             if(startAfter != null){
@@ -113,81 +96,109 @@ public class BoardService {
             ApiFuture<QuerySnapshot> querySnapshot = query.get();
             List<QueryDocumentSnapshot> docs = querySnapshot.get().getDocuments();
 
-            return ListConverter.convertDocumentsToList(docs, this::mapToBoardResponse);
-        } catch (InterruptedException | ExecutionException e) {
-            log.error("stackTrace: ", e);
-            throw new RuntimeException(e);
+            return ListConverter.convertDocumentsToList(docs, this::mapToPostResponse);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("게시글 검색 중 오류 발생", e);
+        } catch (ExecutionException e) {
+            throw new FirestoreOperationException("게시글 검색 실패", e);
         }
     }
 
     /** 게시글 상세 조회 */
-    public Post getPostById(String id) {
+    public DetailedPostResponse getPostById(String boardName, String id) {
         Firestore db = FirestoreClient.getFirestore();
         try {
             DocumentSnapshot doc = db.collection("posts").document(id).get().get();
-            return doc.exists() ? doc.toObject(Post.class) : null;
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
 
-    /** 게시글 수정 */
-    public Post updatePost(String id, MultipartFile image, BoardDto boardDto, String userId) {
-        Firestore db = FirestoreClient.getFirestore();
-        try {
-            DocumentReference ref = db.collection("posts").document(id);
-            DocumentSnapshot snapshot = ref.get().get();
-
-            if (!snapshot.exists()) throw new RuntimeException("게시글을 찾을 수 없음");
-            Post oldPost = snapshot.toObject(Post.class);
-            if (!oldPost.getUserId().equals(userId)) throw new RuntimeException("본인 글만 수정 가능");
-
-            String imageUrl = oldPost.getImageUrl();
-            if (image != null && !image.isEmpty()) {
-                try {
-                    ImageUploadResult imageResponse = imageUploader.upload(UploadConstants.BOARD, image);
-                    imageUrl = imageResponse.getUrl();
-                } catch (Exception e) {
-                    System.out.println("⚠ 이미지 업로드 실패: " + e.getMessage());
+            List<String> imageUrls = new ArrayList<>();
+            List<Map<String,String>> images = (List<Map<String,String>>) doc.get("images");
+            if(images != null && !images.isEmpty()){
+                for (Map<String,String> image : images){
+                    imageUrls.add(image.get("url"));
                 }
             }
 
-            Post updatedPost = Post.builder()
-                    .id(id)
-                    .userId(userId)
-                    .title(boardDto.getTitle())
-                    .content(boardDto.getContent())
-                    .category(boardDto.getCategory())
-                    .scope(boardDto.getScope())
-                    .imageUrl(imageUrl)
-                    .createdAt(oldPost.getCreatedAt())
-                    .pinned(oldPost.isPinned())
+            return DetailedPostResponse.builder()
+                    .postId(doc.getId())
+                    .uid(doc.getString("userId"))
+                    .nickName(doc.getString("nickname"))
+                    .title(doc.getString("title"))
+                    .content(doc.getString("content"))
+                    .category(doc.getString("category"))
+                    .boardName(doc.getString("boardName"))
+                    .imageUrls(imageUrls)
+                    .createdAt(doc.getLong("createdAt"))
                     .build();
 
-            ref.set(updatedPost).get(); // 동기 저장
-            return updatedPost;
-
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("게시글 상세 조회 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
+            throw new FirestoreOperationException("게시글 상세 조회 실패", e);
         }
-        return null;
+    }
+
+    /** 게시글 수정 */
+    public PostResult updatePost(String postId,
+                                 String boardName,
+                                 List<MultipartFile> images,
+                                 PostRequest postRequest,
+                                 String uid) {
+
+        Firestore db = FirestoreClient.getFirestore();
+
+        try {
+            DocumentReference postRef = db.collection("posts").document(postId);
+            DocumentSnapshot doc = postRef.get().get();
+
+            if (!doc.exists())
+                throw new BusinessException(HttpStatus.NOT_FOUND, "게시글 없음"); //404
+
+            if (!doc.getString("uid").equals(uid))
+                throw new BusinessException(HttpStatus.FORBIDDEN, "권한없음"); //403
+
+            List<Map<String,String>> savedImages = (List<Map<String,String>>) doc.get("images");
+            if (images != null && !images.isEmpty()) {
+                savedImages = imageUploader.upload(UploadConstants.BOARD, images);
+            }
+
+            Map<String, Object> updateData = new HashMap<>();
+            updateData.put("title", postRequest.getTitle());
+            updateData.put("content", postRequest.getContent());
+            updateData.put("category", postRequest.getCategory());
+            updateData.put("images", savedImages);
+            updateData.put("nickname", userService.getNickname(uid));
+
+            postRef.update(updateData).get(); // 동기 저장
+            return new PostResult(postId, boardName);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("게시글 수정 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
+            throw new FirestoreOperationException("게시글 수정 실패", e);
+        }
     }
 
     /** 게시글 삭제 */
-    public void deletePost(String id, String userId) {
+    public void deletePost(String postId, String uid) {
         Firestore db = FirestoreClient.getFirestore();
         try {
-            DocumentReference ref = db.collection("posts").document(id);
-            DocumentSnapshot snapshot = ref.get().get();
-            if (!snapshot.exists()) throw new RuntimeException("게시글 없음");
+            DocumentReference ref = db.collection("posts").document(postId);
+            DocumentSnapshot doc = ref.get().get();
+            if (!doc.exists())
+                throw new BusinessException(HttpStatus.NOT_FOUND, "게시글 없음"); //404
 
-            Post post = snapshot.toObject(Post.class);
-            if (!post.getUserId().equals(userId)) throw new RuntimeException("본인 글만 삭제 가능");
+            if (!doc.getString("uid").equals(uid))
+                throw new BusinessException(HttpStatus.FORBIDDEN, "권한없음"); //403
 
             ref.delete().get(); // 동기 삭제
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("게시글 삭제 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
+            throw new FirestoreOperationException("게시글 삭제 실패", e);
         }
     }
 
@@ -199,18 +210,21 @@ public class BoardService {
 
         Comment comment = Comment.builder()
                 .id(commentId)
-                .userId(userId)
+                .uid(userId)
                 .content(dto.getContent())
                 .parentId(dto.getParentId())
-                .createdAt(new Date(System.currentTimeMillis()))
+                .createdAt(System.currentTimeMillis())
                 .build();
 
         try {
             db.collection("posts").document(postId)
                     .collection("comments").document(commentId)
                     .set(comment).get();
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("댓글 등록 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
+            throw new FirestoreOperationException("댓글 등록 실패", e);
         }
 
         return comment;
@@ -232,9 +246,13 @@ public class BoardService {
 
             comments.sort(Comparator.comparing(Comment::getCreatedAt).reversed());
 
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("댓글 불러오기 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
+            throw new FirestoreOperationException("댓글 불러오기 실패", e);
         }
+
         return comments;
     }
 
@@ -250,41 +268,38 @@ public class BoardService {
             if (!snapshot.exists()) throw new RuntimeException("댓글 없음");
 
             Comment comment = snapshot.toObject(Comment.class);
-            if (!comment.getUserId().equals(userId))
-                throw new RuntimeException("본인 댓글만 삭제 가능");
+            if (!comment.getUid().equals(userId))
+                throw new RuntimeException("본인 댓글만 삭제 가능"); //이부분만 나중에 수정
 
             commentRef.delete().get();
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirestoreOperationException("댓글 삭제 중 인터럽트 발생", e);
+        } catch (ExecutionException e) {
+            throw new FirestoreOperationException("댓글 삭제 실패", e);
         }
     }
 
 
-    private BoardGetResponse mapToBoardResponse(QueryDocumentSnapshot document) {
-        String id = document.getId();
+    private PostResponse mapToPostResponse(QueryDocumentSnapshot document) {
+        String postId = document.getId();
         String title = document.getString("title");
-        String content = document.getString("content");
-        String category = document.getString("category");
-        String scope = document.getString("scope");
-        String imageUrl = document.getString("imageUrl");
-        String userId = document.getString("userId");
-        Long createdAt = document.get("createdAt", Long.class);
+        String uid = document.getString("uid");
+        String nickname = document.getString("nickname");
+        Long createdAt = document.getLong("createdAt");
 
         // 필수 필드 검증 (필요 시)
-        if (title == null || content == null || category == null || scope == null) {
-            log.warn("필수 게시글 정보 누락 documentId: {}", id);
+        if (title == null || uid == null || nickname == null || createdAt == null) {
+            log.warn("필수 게시글 정보 누락 documentId: {}", postId);
             return null;
         }
 
-        return BoardGetResponse.builder()
-                .id(id)
+        return PostResponse.builder()
+                .postId(postId)
                 .title(title)
-                .content(content)
-                .category(category)
-                .scope(scope)
-                .imageUrl(imageUrl)
                 .createdAt(createdAt)
-                .userId(userId)
+                .uid(uid)
+                .nickName(nickname)
                 .build();
     }
 

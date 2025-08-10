@@ -1,7 +1,6 @@
 package com.chungwoo.zerowaste.board.model;
 
 import lombok.*;
-import java.util.Date;
 
 /**
  * 게시판 댓글(Comment)을 표현하는 모델 클래스
@@ -25,7 +24,7 @@ public class Comment {
      * 댓글 작성자 고유 ID
      * Firebase Authentication의 UID와 매핑됨
      */
-    private String userId;
+    private String uid;
 
     /**
      * 댓글 본문 내용
@@ -44,5 +43,5 @@ public class Comment {
      * 댓글 작성 시간 (Date)
      * Firestore에 저장 시 Timestamp로 자동 변환됨
      */
-    private Date createdAt;
+    private Long createdAt;
 }

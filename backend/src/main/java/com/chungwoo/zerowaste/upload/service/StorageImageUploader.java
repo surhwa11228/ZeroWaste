@@ -1,7 +1,7 @@
 package com.chungwoo.zerowaste.upload.service;
 
 import com.chungwoo.zerowaste.exception.exceptions.ImageUploadException;
-import com.chungwoo.zerowaste.upload.ImageUploader;
+import com.chungwoo.zerowaste.upload.IImageUploader;
 import com.chungwoo.zerowaste.upload.UploadConstants;
 import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
 import com.chungwoo.zerowaste.utils.ImageUtils;
@@ -16,15 +16,15 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
+import java.util.*;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class StorageImageUploader implements ImageUploader {
+public class StorageImageUploader implements IImageUploader {
 
     @Override
-    public ImageUploadResult upload(String folderName, MultipartFile image) {
+    public Map<String,String> upload(String folderName, MultipartFile image) {
         try {
             byte[] convertedImage = ImageUtils.convertToJPG(image);
             String imageName = UUID.randomUUID() + ".jpg";
@@ -34,12 +34,26 @@ public class StorageImageUploader implements ImageUploader {
             Blob blob = bucket.create(fullPath, convertedImage, UploadConstants.JPEG);
             String url = buildDownloadUrl(blob);
 
-            return new ImageUploadResult(blob.getName(), url, blob);
+            Map<String,String> result = new HashMap<>();
+            result.put("imageName",blob.getName());
+            result.put("url",url);
+            return result;
 
         } catch (IOException e) {
             log.error("ImageUploader failed upload", e);
             throw new ImageUploadException("이미지 업로드에 실패했습니다.", e);
         }
+    }
+
+    @Override
+    public List<Map<String,String>> upload(String folderName, List<MultipartFile> images) {
+        List<Map<String,String>> results = new ArrayList<>();
+        for (MultipartFile image : images) {
+            if (image != null && !image.isEmpty()) {
+                results.add(upload(folderName, image));  // 각 이미지의 URL 저장
+            }
+        }
+        return results;
     }
 
     private String buildDownloadUrl(Blob blob) {

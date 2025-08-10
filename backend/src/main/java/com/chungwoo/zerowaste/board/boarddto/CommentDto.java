@@ -19,7 +19,7 @@ public class CommentDto {
      * - Firebase Authentication UID와 매핑됨
      * - 일반적으로 @AuthenticationPrincipal을 통해 서버에서 추출
      */
-    private String userId;
+    private String uid;
 
     /**
      * 댓글 본문 내용

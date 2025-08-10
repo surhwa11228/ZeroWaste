@@ -13,36 +13,16 @@ import lombok.*;
 @NoArgsConstructor   // Lombok: 파라미터 없는 기본 생성자 자동 생성
 @AllArgsConstructor  // Lombok: 모든 필드를 초기화하는 생성자 자동 생성
 @Builder             // Lombok: Builder 패턴 사용 가능
-public class BoardDto {
+public class PostRequest {
 
-    /**
-     * 게시글 제목
-     * - 필수 입력
-     */
     @NotBlank
     String title;
 
-    /**
-     * 게시글 본문 내용
-     * - 필수 입력
-     */
     @NotBlank
     private String content;
 
-    /**
-     * 게시글 카테고리
-     * 예: "제보", "질문", "기타"
-     */
     @NotBlank
     private String category;
-
-    /**
-     * 게시글 공개 범위
-     * "지역" = 작성자 지역 한정
-     * "전체" = 전체 사용자 열람 가능
-     */
-    @NotBlank
-    private String scope;
 }
 
 
