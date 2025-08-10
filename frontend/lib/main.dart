@@ -12,7 +12,7 @@ import 'screens/admin_dashboard_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   runApp(const ZeroWasteApp());
@@ -26,6 +26,11 @@ class ZeroWasteApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ZeroWaste',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
+
+      // NOTE: 'home'가 설정되면 'initialRoute'는 무시 가능
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
@@ -40,9 +45,8 @@ class ZeroWasteApp extends StatelessWidget {
           return const LoginScreen();
         },
       ),
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+
+      // initialRoute를 사용 시, 'home'을 제거하고 routes 기반으로 전환
       initialRoute: '/splash',
       routes: {
         '/splash': (_) => const SplashScreen(),

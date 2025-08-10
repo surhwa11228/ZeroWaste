@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ZeroWaste Kakao Map</title>
+  <style>html, body, #map { height: 100%; margin: 0; padding: 0; }</style>
+  <script>
+    window.onerror = function(msg, src, line, col, err){
+      try { KakaoBridge.postMessage(JSON.stringify({type:'js_error', msg, src, line, col})); } catch(e) {}
+    };
+    function post(msg){ try { KakaoBridge.postMessage(msg); } catch(e) { console.log(msg); } }
+  </script>
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=a9485d1836815b45b710a9e381f79806"
+          onload="post('KAKAO_SDK_LOADED')"
+          onerror="post('KAKAO_SDK_ERROR')"></script>
+</head>
+<body>
+  <div id="map"></div>
+<script>
+  let map; let centerMarker; let myLocationMarker;
+
+  function initMap(lat, lng, level){
+    if(!window.kakao || !kakao.maps){ post('KAKAO_NOT_READY'); return; }
+    const container = document.getElementById('map');
+    const options = { center: new kakao.maps.LatLng(lat||37.5665, lng||126.9780), level: level||4 };
+    map = new kakao.maps.Map(container, options);
+
+    centerMarker = new kakao.maps.Marker({ position: map.getCenter() });
+    centerMarker.setMap(map);
+
+    kakao.maps.event.addListener(map, 'click', function(e){
+      const latlng = e.latLng;
+      post(JSON.stringify({type:'map_click', lat: latlng.getLat(), lng: latlng.getLng()}));
+    });
+    post('MAP_INIT_DONE');
+  }
+
+  function moveTo(lat, lng){
+    if(!map) return;
+    const pos = new kakao.maps.LatLng(lat, lng);
+    map.setCenter(pos);
+    if(centerMarker) centerMarker.setPosition(pos);
+  }
+
+  //내 위치 마커 (centerMarker와 별개)
+  function setMyLocation(lat, lng){
+    if(!map) return;
+    const pos = new kakao.maps.LatLng(lat, lng);
+    if (!myLocationMarker) {
+      myLocationMarker = new kakao.maps.Marker({ position: pos, zIndex: 100 });
+      myLocationMarker.setMap(map);
+    } else {
+      myLocationMarker.setPosition(pos);
+    }
+  }
+
+  window.initMap = initMap;
+  window.moveTo = moveTo;
+  window.setMyLocation = setMyLocation;
+</script>
+</body>
+</html>
