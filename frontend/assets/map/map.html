@@ -4,7 +4,23 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>ZeroWaste Kakao Map</title>
-  <style>html, body, #map { height: 100%; margin: 0; padding: 0; }</style>
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    #map { position: relative; }
+
+    #selectOverlay {
+      position: absolute; display: none; transform: translate(-50%, -100%);
+      background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      padding: 8px 10px; font-size: 14px; user-select: none;
+      z-index: 9999;
+      pointer-events: auto;
+    }
+    #selectOverlay .btn {
+      border: 0; border-radius: 8px; padding: 6px 10px; font-weight: 700;
+      background: #2f7d32; color: #fff; cursor: pointer;
+    }
+    #selectOverlay .txt { margin-bottom: 6px; font-size: 12px; opacity: .8; }
+  </style>
   <script>
     window.onerror = function(msg, src, line, col, err){
       try { KakaoBridge.postMessage(JSON.stringify({type:'js_error', msg, src, line, col})); } catch(e) {}
@@ -16,9 +32,24 @@
           onerror="post('KAKAO_SDK_ERROR')"></script>
 </head>
 <body>
-  <div id="map"></div>
+  <div id="map">
+    <div id="selectOverlay">
+      <div id="coordText" class="txt">위치 선택됨</div>
+      <button id="pickBtn" class="btn">이 위치로 제보</button>
+    </div>
+  </div>
+
 <script>
   let map; let centerMarker; let myLocationMarker;
+
+  // 클릭 선택용 상태/마커/오버레이
+  let selectedMarker = null;
+  let selectedLatLng = null;
+  const overlayEl = document.getElementById('selectOverlay');
+  const coordTextEl = document.getElementById('coordText');
+
+  overlayEl.addEventListener('click', (ev) => ev.stopPropagation());
+  overlayEl.addEventListener('touchstart', (ev) => ev.stopPropagation(), { passive: true });
 
   function initMap(lat, lng, level){
     if(!window.kakao || !kakao.maps){ post('KAKAO_NOT_READY'); return; }
@@ -31,8 +62,39 @@
 
     kakao.maps.event.addListener(map, 'click', function(e){
       const latlng = e.latLng;
+      selectedLatLng = latlng;
+
+      // 마커 생성/이동
+      if(!selectedMarker){
+        selectedMarker = new kakao.maps.Marker({ position: latlng, map: map, zIndex: 90 });
+      } else {
+        selectedMarker.setPosition(latlng);
+        if(!selectedMarker.getMap()) selectedMarker.setMap(map);
+      }
+
+      // 오버레이 텍스트 & 위치
+      coordTextEl.textContent = `위도 ${latlng.getLat().toFixed(5)} / 경도 ${latlng.getLng().toFixed(5)}`;
+      updateOverlayPosition();
+      overlayEl.style.display = 'block';
+
+      // Flutter에도 클릭 이벤트는 계속 전달(기존 호환)
       post(JSON.stringify({type:'map_click', lat: latlng.getLat(), lng: latlng.getLng()}));
     });
+
+    // 지도 이동/줌 시 오버레이 따라가기
+    kakao.maps.event.addListener(map, 'center_changed', updateOverlayPosition);
+    kakao.maps.event.addListener(map, 'zoom_changed', updateOverlayPosition);
+
+    // 선택 버튼 클릭 → Flutter로 확정 좌표 전달
+    document.getElementById('pickBtn').addEventListener('click', function(){
+      if(!selectedLatLng) return;
+      post(JSON.stringify({
+        type: 'location_selected',
+        lat: selectedLatLng.getLat(),
+        lng: selectedLatLng.getLng()
+      }));
+    });
+
     post('MAP_INIT_DONE');
   }
 
@@ -41,9 +103,10 @@
     const pos = new kakao.maps.LatLng(lat, lng);
     map.setCenter(pos);
     if(centerMarker) centerMarker.setPosition(pos);
+    updateOverlayPosition();
   }
 
-  //내 위치 마커 (centerMarker와 별개)
+  //내 위치 마커
   function setMyLocation(lat, lng){
     if(!map) return;
     const pos = new kakao.maps.LatLng(lat, lng);
@@ -52,12 +115,30 @@
       myLocationMarker.setMap(map);
     } else {
       myLocationMarker.setPosition(pos);
+      if(!myLocationMarker.getMap()) myLocationMarker.setMap(map);
     }
   }
 
+  // 오버레이 위치 보정/초기화 함수
+  function updateOverlayPosition(){
+    if(!map || !selectedLatLng) return;
+    const proj = map.getProjection();
+    const pt = proj.containerPointFromCoords(selectedLatLng);
+    overlayEl.style.left = pt.x + 'px';
+    overlayEl.style.top  = pt.y + 'px';
+  }
+
+  function clearSelection(){
+    selectedLatLng = null;
+    if(selectedMarker){ selectedMarker.setMap(null); }
+    overlayEl.style.display = 'none';
+  }
+
+  // 외부 노출
   window.initMap = initMap;
   window.moveTo = moveTo;
   window.setMyLocation = setMyLocation;
+  window.clearSelection = clearSelection;
 </script>
 </body>
 </html>
