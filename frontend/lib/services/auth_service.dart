@@ -78,6 +78,31 @@ class AuthService {
     return await _storage.read(key: 'accessToken');
   }
 
+  Future<String?> refreshAccessToken() async {
+    final refreshToken = await _storage.read(key: 'refreshToken');
+    if (refreshToken == null) return null;
+
+    final response = await http.post(
+      Uri.parse('http://192.168.45.141:8080/api/auth/refresh'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'refreshToken': refreshToken}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final newAccessToken = data['accessToken'] as String?;
+      final newRefreshToken = data['refreshToken'] as String? ?? refreshToken;
+
+      if (newAccessToken != null) {
+        await _storage.write(key: 'accessToken', value: newAccessToken);
+      }
+      await _storage.write(key: 'refreshToken', value: newRefreshToken);
+      return newAccessToken;
+    } else {
+      return null; // 갱신 실패
+    }
+  }
+
   //로그아웃
   Future<void> signOut() async {
     await _auth.signOut();
