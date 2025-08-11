@@ -36,7 +36,7 @@ public class BoardController {
         // 테스트용 UID 처리
         String testUid = (user.getUid() == null) ? "testUid" : user.getUid();
 
-        PostResult postResult = boardService.post(images, boardName, postRequest, testUid);
+        PostResult postResult = boardService.post(boardName, images, postRequest, testUid);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(postResult));
     }
@@ -45,7 +45,7 @@ public class BoardController {
     @GetMapping("/{board-name}")
     public ResponseEntity<ApiResponse<List<PostResponse>>> getPosts(@PathVariable("board-name") String boardName,
                                                        @RequestParam(required = false) String category,
-                                                       @RequestParam(required = false) Integer startAfter) {
+                                                       @RequestParam(required = false) Long startAfter) {
 
         List<PostResponse> response = boardService.getPosts(boardName, category, startAfter);
         return ResponseEntity.status(HttpStatus.OK)
@@ -72,7 +72,7 @@ public class BoardController {
 
         String testUid = (user == null) ? "testUid" : user.getUid();
 
-        PostResult postResult = boardService.updatePost(postId, boardName, images, postRequest, testUid);
+        PostResult postResult = boardService.updatePost(boardName, postId, images, postRequest, testUid);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(postResult));
     }
@@ -84,7 +84,7 @@ public class BoardController {
                                                         @AuthenticationPrincipal String userId) {
 
         String testUid = (userId == null) ? "testUid" : userId;
-        boardService.deletePost(postId, testUid);
+        boardService.deletePost(boardName, postId, testUid);
         return ResponseEntity.status(HttpStatus.NO_CONTENT)
                 .body(ApiResponse.noContent());
     }
@@ -93,20 +93,20 @@ public class BoardController {
 
     /** 댓글 작성 */
     @PostMapping("/{board-name}/{post-id}/comment")
-    public ResponseEntity<Comment> addComment(@PathVariable("board-name") String boardName,
+    public ResponseEntity<?> addComment(@PathVariable("board-name") String boardName,
                                               @PathVariable("post-id") String postId,
                                               @RequestBody CommentDto commentDto,
                                               @AuthenticationPrincipal String userId) {
 
         String testUid = (userId == null) ? "testUid" : userId;
-        return ResponseEntity.ok(boardService.addComment(postId, commentDto, testUid));
+        return ResponseEntity.ok(boardService.addComment(boardName, postId, commentDto, testUid));
     }
 
     /** 댓글 목록 조회 */
     @GetMapping("/{board-name}/{post-id}/comments")
     public ResponseEntity<List<Comment>> getComments(@PathVariable("board-name") String boardName,
                                                      @PathVariable("post-id") String postId) {
-        return ResponseEntity.ok(boardService.getComments(postId));
+        return ResponseEntity.ok(boardService.getComments(boardName, postId));
     }
 
     /** 댓글 삭제 (본인만) */
@@ -117,7 +117,7 @@ public class BoardController {
                                                            @AuthenticationPrincipal String userId) {
 
         String testUid = (userId == null) ? "testUid" : userId;
-        boardService.deleteComment(postId, commentId, testUid);
+        boardService.deleteComment(boardName, postId, commentId, testUid);
         return ResponseEntity.status(HttpStatus.NO_CONTENT)
                 .body(ApiResponse.noContent());
     }

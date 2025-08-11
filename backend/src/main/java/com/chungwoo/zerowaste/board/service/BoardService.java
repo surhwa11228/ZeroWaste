@@ -28,8 +28,8 @@ public class BoardService {
     private final StorageImageUploader imageUploader;
     private final UserService userService;
     /** 게시글 작성 */
-    public PostResult post(List<MultipartFile> images,
-                           String boardName,
+    public PostResult post(String boardName,
+                           List<MultipartFile> images,
                            PostRequest postRequest,
                            String uid) {
         try {
@@ -61,7 +61,7 @@ public class BoardService {
                 transaction.set(counterRef, Collections.singletonMap("value", nextValue)); // ID 증가
 
                 // 🔹 Firestore에 게시글 저장
-                transaction.set(db.collection("posts").document(String.valueOf(nextValue)), post); // 게시글 저장
+                transaction.set(db.collection(boardName).document(String.valueOf(nextValue)), post); // 게시글 저장
 
                 return String.valueOf(nextValue);  // 트랜잭션에서 새 게시글 ID 반환
             }).get();  // blocking
@@ -77,10 +77,10 @@ public class BoardService {
     }
 
     /** 게시글 목록 조회 */
-    public List<PostResponse> getPosts(String boardName, String category, Integer startAfter) {
+    public List<PostResponse> getPosts(String boardName, String category, Long startAfter) {
         try {
             Firestore db = FirestoreClient.getFirestore();
-            Query query = db.collection("posts");
+            Query query = db.collection(boardName);
             if(boardName != null){
                 query = query.whereEqualTo("boardName", boardName);
             }
@@ -107,9 +107,9 @@ public class BoardService {
 
     /** 게시글 상세 조회 */
     public DetailedPostResponse getPostById(String boardName, String id) {
-        Firestore db = FirestoreClient.getFirestore();
+        Firestore db = FirestoreClient.getFirestore();//board db
         try {
-            DocumentSnapshot doc = db.collection("posts").document(id).get().get();
+            DocumentSnapshot doc = db.collection(boardName).document(id).get().get();
 
             List<String> imageUrls = new ArrayList<>();
             List<Map<String,String>> images = (List<Map<String,String>>) doc.get("images");
@@ -140,8 +140,8 @@ public class BoardService {
     }
 
     /** 게시글 수정 */
-    public PostResult updatePost(String postId,
-                                 String boardName,
+    public PostResult updatePost(String boardName,
+                                 String postId,
                                  List<MultipartFile> images,
                                  PostRequest postRequest,
                                  String uid) {
@@ -149,7 +149,7 @@ public class BoardService {
         Firestore db = FirestoreClient.getFirestore();
 
         try {
-            DocumentReference postRef = db.collection("posts").document(postId);
+            DocumentReference postRef = db.collection(boardName).document(postId);
             DocumentSnapshot doc = postRef.get().get();
 
             if (!doc.exists())
@@ -182,10 +182,10 @@ public class BoardService {
     }
 
     /** 게시글 삭제 */
-    public void deletePost(String postId, String uid) {
+    public void deletePost(String boardName, String postId, String uid) {
         Firestore db = FirestoreClient.getFirestore();
         try {
-            DocumentReference ref = db.collection("posts").document(postId);
+            DocumentReference ref = db.collection(boardName).document(postId);
             DocumentSnapshot doc = ref.get().get();
             if (!doc.exists())
                 throw new BusinessException(HttpStatus.NOT_FOUND, "게시글 없음"); //404
@@ -204,38 +204,38 @@ public class BoardService {
 
     // ==================== 💬 댓글/대댓글 CRUD ====================
 
-    public Comment addComment(String postId, CommentDto dto, String userId) {
+    public PostResult addComment(String boardName, String postId, CommentDto dto, String uid) {
         Firestore db = FirestoreClient.getFirestore();
         String commentId = UUID.randomUUID().toString();
 
-        Comment comment = Comment.builder()
-                .id(commentId)
-                .uid(userId)
-                .content(dto.getContent())
-                .parentId(dto.getParentId())
-                .createdAt(System.currentTimeMillis())
-                .build();
+        Map<String,Object> commentData = new HashMap<>();
+        commentData.put("commentId", commentId);
+        commentData.put("parentId", dto.getParentId());
+        commentData.put("content", dto.getContent());
+        commentData.put("uid", uid);
+        commentData.put("createAt", System.currentTimeMillis());
 
         try {
-            db.collection("posts").document(postId)
+            db.collection(boardName).document(postId)
                     .collection("comments").document(commentId)
-                    .set(comment).get();
+                    .set(commentData).get();
+
+            return new PostResult(postId, boardName);
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new FirestoreOperationException("댓글 등록 중 인터럽트 발생", e);
         } catch (ExecutionException e) {
             throw new FirestoreOperationException("댓글 등록 실패", e);
         }
-
-        return comment;
     }
 
-    public List<Comment> getComments(String postId) {
+    public List<Comment> getComments(String boardName, String postId) {
         Firestore db = FirestoreClient.getFirestore();
         List<Comment> comments = new ArrayList<>();
 
         try {
-            List<QueryDocumentSnapshot> docs = db.collection("posts")
+            List<QueryDocumentSnapshot> docs = db.collection(boardName)
                     .document(postId)
                     .collection("comments")
                     .get().get().getDocuments();
@@ -256,20 +256,21 @@ public class BoardService {
         return comments;
     }
 
-    public void deleteComment(String postId, String commentId, String userId) {
+    public void deleteComment(String boardName, String postId, String commentId, String uid) {
         Firestore db = FirestoreClient.getFirestore();
         try {
-            DocumentReference commentRef = db.collection("posts")
+            DocumentReference commentRef = db.collection(boardName)
                     .document(postId)
                     .collection("comments")
                     .document(commentId);
 
             DocumentSnapshot snapshot = commentRef.get().get();
-            if (!snapshot.exists()) throw new RuntimeException("댓글 없음");
+            if (!snapshot.exists())
+                throw new BusinessException(HttpStatus.NOT_FOUND, "댓글 없음"); //404
 
             Comment comment = snapshot.toObject(Comment.class);
-            if (!comment.getUid().equals(userId))
-                throw new RuntimeException("본인 댓글만 삭제 가능"); //이부분만 나중에 수정
+            if (!comment.getUid().equals(uid))
+                throw new BusinessException(HttpStatus.FORBIDDEN, "권한없음"); //403
 
             commentRef.delete().get();
         } catch (InterruptedException e) {
