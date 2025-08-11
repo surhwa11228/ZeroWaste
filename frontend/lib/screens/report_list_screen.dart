@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/app_colors.dart';
 
 class ReportListScreen extends StatelessWidget {
   const ReportListScreen({super.key});
@@ -7,56 +6,45 @@ class ReportListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reports = [
-      {'title': '불법 투기 제보 #1', 'status': '대기중'},
-      {'title': '불법 투기 제보 #2', 'status': '승인됨'},
-      {'title': '불법 투기 제보 #3', 'status': '거절됨'},
+      {'title': '불법 투기 포대', 'address': '마포구 서교동 123-4'},
+      {'title': '무단 폐기 가구', 'address': '관악구 신림동 512-8'},
+      {'title': '대형 폐기물 방치', 'address': '강서구 등촌동 77-9'},
     ];
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: reports.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final report = reports[index];
-        final status = report['status']!;
-        final chipColor = _getStatusColor(status);
-        final textColor = status == '거절됨' ? Colors.white : Colors.black87;
-
-        return Card(
-          child: ListTile(
-            leading: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.grey[300],
+    return Scaffold(
+      appBar: AppBar(title: const Text('제보 내역')),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(20),
+        itemCount: reports.length,
+        itemBuilder: (context, index) {
+          final item = reports[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: Theme.of(context).colorScheme.surfaceVariant,
+                ),
+                child: const Icon(Icons.photo_outlined),
               ),
-              child: const Icon(Icons.image, size: 32, color: Colors.white70),
+              title: Text(
+                item['title']!,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(item['address']!),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                // TODO: 상세 페이지로 이동
+              },
             ),
-            title: Text(report['title']!),
-            subtitle: const Text('서울시 강남구 • 2025.08.06'),
-            trailing: Chip(
-              label: Text(status, style: TextStyle(color: textColor)),
-              backgroundColor: chipColor,
-              side: BorderSide.none,
-            ),
-            onTap: () {},
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case '대기중':
-        return AppColors.yellow;
-      case '승인됨':
-        return AppColors.greenLight;
-      case '거절됨':
-        return AppColors.red;
-      default:
-        return Colors.grey[200]!;
-    }
   }
 }

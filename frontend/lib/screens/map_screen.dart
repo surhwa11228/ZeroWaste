@@ -68,7 +68,10 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ZeroWaste 지도')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('ZeroWaste 지도'),
+      ),
       body: WebViewWidget(controller: _controller),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,

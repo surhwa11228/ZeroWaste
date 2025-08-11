@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'report_list_screen.dart';
 
 class MyPageScreen extends StatelessWidget {
   const MyPageScreen({super.key});
@@ -64,20 +65,20 @@ class MyPageScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         ListTile(
-          leading: const Icon(Icons.history),
-          title: const Text('활동 내역'),
+          leading: const Icon(Icons.report),
+          title: const Text('제보 내역'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
-            // TODO: 활동 내역 화면으로 이동
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ReportListScreen()));
           },
         ),
         ListTile(
           leading: const Icon(Icons.settings_outlined),
           title: const Text('설정'),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            // TODO: 설정 화면으로 이동
-          },
+          onTap: () {},
         ),
         ListTile(
           leading: const Icon(Icons.logout),

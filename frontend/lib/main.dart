@@ -11,6 +11,8 @@ import 'screens/mypage_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'screens/board_list_screen.dart';
+import 'screens/report_list_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +60,8 @@ class ZeroWasteApp extends StatelessWidget {
         '/report-detail': (_) => const ReportDetailScreen(),
         '/mypage': (_) => const MyPageScreen(),
         '/admin': (_) => const AdminDashboardScreen(),
+        '/board': (_) => const BoardListScreen(),
+        '/reportList': (_) => const ReportListScreen(),
       },
     );
   }
