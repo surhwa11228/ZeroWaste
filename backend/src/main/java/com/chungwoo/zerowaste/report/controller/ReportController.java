@@ -60,7 +60,7 @@ public class ReportController {
 
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<List<DetailedReportResponse>>> searchMyReports
-            (@RequestBody Long startAfter, @AuthenticationPrincipal AuthUserDetails user) {
+            (@RequestParam(required = false) Long startAfter, @AuthenticationPrincipal AuthUserDetails user) {
 
 
         List<DetailedReportResponse> myReports = reportService.searchMyReports(startAfter, user);

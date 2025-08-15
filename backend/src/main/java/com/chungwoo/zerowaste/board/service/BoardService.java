@@ -81,9 +81,6 @@ public class BoardService {
         try {
             Firestore db = FirestoreClient.getFirestore();
             Query query = db.collection(boardName);
-            if(boardName != null){
-                query = query.whereEqualTo("boardName", boardName);
-            }
             if(category != null){
                 query = query.whereEqualTo("category", category);
             }
@@ -122,7 +119,7 @@ public class BoardService {
             return DetailedPostResponse.builder()
                     .postId(doc.getId())
                     .uid(doc.getString("userId"))
-                    .nickName(doc.getString("nickname"))
+                    .nickname(doc.getString("nickname"))
                     .title(doc.getString("title"))
                     .content(doc.getString("content"))
                     .category(doc.getString("category"))
@@ -300,7 +297,7 @@ public class BoardService {
                 .title(title)
                 .createdAt(createdAt)
                 .uid(uid)
-                .nickName(nickname)
+                .nickname(nickname)
                 .build();
     }
 

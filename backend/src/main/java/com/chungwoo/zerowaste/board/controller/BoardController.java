@@ -37,8 +37,8 @@ public class BoardController {
         String testUid = (user.getUid() == null) ? "testUid" : user.getUid();
 
         PostResult postResult = boardService.post(boardName, images, postRequest, testUid);
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(ApiResponse.success(postResult));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created(postResult));
     }
 
     /** 게시글 목록 조회 */

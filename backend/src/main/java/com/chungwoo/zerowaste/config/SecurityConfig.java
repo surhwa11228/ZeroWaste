@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -26,13 +27,27 @@ public class SecurityConfig {
 
     private final JwtProvider jwtProvider;
 
-
     public SecurityConfig(JwtProvider jwtProvider) {
         this.jwtProvider = jwtProvider;
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    @Order(1)
+    public SecurityFilterChain authChain(HttpSecurity http) throws Exception {
+        return http
+                .securityMatcher("/api/auth/**")
+                .cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
+                .formLogin(form -> form.disable())
+                .httpBasic(httpBasic -> httpBasic.disable())
+                .authorizeHttpRequests(req -> req.anyRequest().permitAll())
+                // 로그인에서는 JwtAuthenticationFilter를 추가하지 않음
+                .build();
+    }
+
+    @Bean
+    @Order(2)
+    public SecurityFilterChain appChain(HttpSecurity http) throws Exception {
         log.debug("security filter chain");
         return http
                 .cors(Customizer.withDefaults())
@@ -41,7 +56,7 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .sessionManagement(sess ->
                         sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**").permitAll()
+                .authorizeHttpRequests(req -> req.requestMatchers("/api/auth/**").permitAll()
                                 .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {

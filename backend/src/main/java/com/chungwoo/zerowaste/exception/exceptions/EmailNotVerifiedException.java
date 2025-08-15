@@ -4,6 +4,6 @@ import org.springframework.http.HttpStatus;
 
 public class EmailNotVerifiedException extends BusinessException{
     public EmailNotVerifiedException(String message) {
-        super(HttpStatus.FORBIDDEN, message, new Throwable());
+        super(HttpStatus.UNAUTHORIZED, message);
     }
 }
