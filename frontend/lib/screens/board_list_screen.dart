@@ -9,17 +9,17 @@ class BoardListScreen extends StatefulWidget {
 }
 
 class _BoardListScreenState extends State<BoardListScreen> {
-  late Future<PagedResult<BoardPost>> _future;
+  late Future<PagedResult<BoardSummary>> _future;
   final _svc = BoardService.instance;
 
   @override
   void initState() {
     super.initState();
-    _future = _svc.list(page: 0, size: 20);
+    _future = _svc.list(boardName: 'freeBoard');
   }
 
   Future<void> _reload() async {
-    final f = _svc.list(page: 0, size: 20);
+    final f = _svc.list(boardName: 'freeBoard');
     if (!mounted) return;
     setState(() => _future = f);
     await f;
@@ -34,7 +34,7 @@ class _BoardListScreenState extends State<BoardListScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _reload,
-        child: FutureBuilder<PagedResult<BoardPost>>(
+        child: FutureBuilder<PagedResult<BoardSummary>>(
           future: _future,
           builder: (context, snap) {
             // 로딩
@@ -99,17 +99,12 @@ class _BoardListScreenState extends State<BoardListScreen> {
                 final p = items[i];
                 return Card(
                   child: ListTile(
-                    leading: _Thumb(
-                      url:
-                          p.imageUrl ??
-                          (p.images.isNotEmpty ? p.images.first : null),
-                    ),
                     title: Text(
                       p.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    subtitle: Text(p.author),
+                    subtitle: Text(p.authorName),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       // 상세 화면으로 이동 (라우트가 있다면 교체)

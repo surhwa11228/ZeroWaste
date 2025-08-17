@@ -1,12 +1,47 @@
+class BoardSummary {
+  final String id;
+  final String title;
+  final DateTime createdAt;
+  final String authorId;
+  final String authorName;
+
+  BoardSummary({
+    required this.id,
+    required this.title,
+    required this.createdAt,
+    required this.authorId,
+    required this.authorName,
+  });
+
+  factory BoardSummary.fromJson(Map<String, dynamic> json) {
+    return BoardSummary(
+      id: json['postId'] as String,
+      title: json['title'] as String,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt']),
+      authorId: json['uid'] as String,
+      authorName: json['nickname'] as String,
+    );
+  }
+
+  static int _asInt(dynamic v) {
+    if (v is int) return v;
+    if (v is String) {
+      final n = int.tryParse(v.trim());
+      if (n != null) return n;
+    }
+    if (v is num) return v.toInt();
+    throw FormatException('Invalid id: $v'); // 디버깅에 도움
+  }
+}
+
 class BoardPost {
-  final int id;
+  final String id;
   final String title;
   final String content;
   final String author;
   final String? imageUrl;
   final List<String> images;
   final DateTime createdAt;
-  final int? commentCount;
 
   BoardPost({
     required this.id,
@@ -16,11 +51,10 @@ class BoardPost {
     required this.createdAt,
     this.imageUrl,
     this.images = const [],
-    this.commentCount,
   });
 
   factory BoardPost.fromJson(Map<String, dynamic> json) => BoardPost(
-    id: json['id'],
+    id: json['postId'] as String,
     title: json['title'],
     content: json['content'],
     author: json['author'],
@@ -29,7 +63,6 @@ class BoardPost {
         (json['images'] as List?)?.map((e) => e.toString()).toList() ??
         const [],
     createdAt: DateTime.parse(json['createdAt']),
-    commentCount: json['commentCount'],
   );
 }
 
