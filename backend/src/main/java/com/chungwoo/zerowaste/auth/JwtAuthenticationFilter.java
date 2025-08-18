@@ -30,18 +30,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
         log.debug("doFilterInternal");
+
+        String path = request.getRequestURI();
+        if (path.startsWith("/api/auth/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String token = TokenUtils.extractBearerToken(request);
 
-        if (token != null) {
-            try {
-                Claims claims = jwtProvider.parseToken(token); // 무효면 JwtException
-                AuthUserDetails user = new AuthUserDetails(claims.getSubject(), claims.get("email", String.class));
-                Authentication auth = new UsernamePasswordAuthenticationToken(user, null, List.of());
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            } catch (JwtException | IllegalArgumentException e) {
-                // “토큰이 존재하지만 유효하지 않음” → 인증 예외로 위임 → EntryPoint가 401 반환
-                throw new org.springframework.security.core.AuthenticationException("Invalid JWT", e) {};
-            }
+//        if (token != null || jwtProvider.validateToken(token)) {
+//            try {
+//                Claims claims = jwtProvider.parseToken(token); // 무효면 JwtException
+//                AuthUserDetails user = new AuthUserDetails(claims.getSubject(), claims.get("email", String.class));
+//                Authentication auth = new UsernamePasswordAuthenticationToken(user, null, List.of());
+//                SecurityContextHolder.getContext().setAuthentication(auth);
+//            } catch (JwtException | IllegalArgumentException e) {
+//                // “토큰이 존재하지만 유효하지 않음” → 인증 예외로 위임 → EntryPoint가 401 반환
+//                throw new org.springframework.security.core.AuthenticationException("Invalid JWT", e) {};
+//            }
+//        }
+        if (token != null || jwtProvider.validateToken(token)) {
+            Claims claims = jwtProvider.parseToken(token);
+            AuthUserDetails user = new AuthUserDetails(claims.getSubject(), claims.get("email", String.class));
+            Authentication auth = new UsernamePasswordAuthenticationToken(user, null, List.of());
+            SecurityContextHolder.getContext().setAuthentication(auth);
         }
 
         filterChain.doFilter(request, response);

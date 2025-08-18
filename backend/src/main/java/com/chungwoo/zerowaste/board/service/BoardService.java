@@ -78,6 +78,8 @@ public class BoardService {
 
     /** 게시글 목록 조회 */
     public List<PostResponse> getPosts(String boardName, String category, Long startAfter) {
+
+        log.debug("getPosts");
         try {
             Firestore db = FirestoreClient.getFirestore();
             Query query = db.collection(boardName);
@@ -122,7 +124,7 @@ public class BoardService {
             return DetailedPostResponse.builder()
                     .postId(doc.getId())
                     .uid(doc.getString("userId"))
-                    .nickName(doc.getString("nickname"))
+                    .nickname(doc.getString("nickname"))
                     .title(doc.getString("title"))
                     .content(doc.getString("content"))
                     .category(doc.getString("category"))
@@ -300,7 +302,7 @@ public class BoardService {
                 .title(title)
                 .createdAt(createdAt)
                 .uid(uid)
-                .nickName(nickname)
+                .nickname(nickname)
                 .build();
     }
 

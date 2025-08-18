@@ -9,6 +9,7 @@ import com.chungwoo.zerowaste.board.service.BoardService;
 import com.google.protobuf.Api;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
 
+
+
+
+@Slf4j
 @RestController
 @RequestMapping("/api/board")
 @RequiredArgsConstructor
@@ -47,6 +52,7 @@ public class BoardController {
                                                        @RequestParam(required = false) String category,
                                                        @RequestParam(required = false) Long startAfter) {
 
+        log.debug("Get posts for board {}", boardName);
         List<PostResponse> response = boardService.getPosts(boardName, category, startAfter);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(response));

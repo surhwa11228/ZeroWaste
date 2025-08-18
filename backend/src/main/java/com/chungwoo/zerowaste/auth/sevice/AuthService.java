@@ -66,7 +66,11 @@ public class AuthService {
     }
 
     private LoginRequest authenticateFirebaseUser(HttpServletRequest request) {
+        log.debug("authenticateFirebaseUser {}", request.getRemoteAddr());
+
         String idToken = TokenUtils.extractBearerToken(request);
+
+
         try {
             FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
             if (!decodedToken.isEmailVerified()) {

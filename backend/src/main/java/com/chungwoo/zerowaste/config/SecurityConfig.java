@@ -31,42 +31,42 @@ public class SecurityConfig {
         this.jwtProvider = jwtProvider;
     }
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        log.debug("security filter chain");
-        return http
-                .cors(Customizer.withDefaults())
-                .csrf(csrf -> csrf.disable())
-                .httpBasic(httpBasic -> httpBasic.disable())
-                .formLogin(form -> form.disable())
-                .sessionManagement(sess ->
-                        sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**").permitAll()
-                                .anyRequest().authenticated())
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
-                            response.setContentType("application/json");
-                            response.setCharacterEncoding("UTF-8");
-                            String body = String.format(
-                                    "{\"status\":%d,\"message\":\"%s\"}",
-                                    HttpServletResponse.SC_UNAUTHORIZED,
-                                    "인증이 필요합니다."
-                            );
-                            response.getWriter().write(body);
-                        })
-                )
-                .addFilterBefore(new LoggingFilter(), UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(new JwtAuthenticationFilter(jwtProvider),
-                        UsernamePasswordAuthenticationFilter.class)
-                .build();
-    }
+//    @Bean
+//    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+//        log.debug("security filter chain");
+//        return http
+//                .cors(Customizer.withDefaults())
+//                .csrf(csrf -> csrf.disable())
+//                .httpBasic(httpBasic -> httpBasic.disable())
+//                .formLogin(form -> form.disable())
+//                .sessionManagement(sess ->
+//                        sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+//                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**").permitAll()
+//                        .anyRequest().authenticated())
+////                .exceptionHandling(ex -> ex
+////                        .authenticationEntryPoint((request, response, authException) -> {
+////                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
+////                            response.setContentType("application/json");
+////                            response.setCharacterEncoding("UTF-8");
+////                            String body = String.format(
+////                                    "{\"status\":%d,\"message\":\"%s\"}",
+////                                    HttpServletResponse.SC_UNAUTHORIZED,
+////                                    "인증이 필요합니다."
+////                            );
+////                            response.getWriter().write(body);
+////                        })
+////                )
+//                .addFilterBefore(new JwtAuthenticationFilter(jwtProvider),
+//                        UsernamePasswordAuthenticationFilter.class)
+//                .build();
+//    }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedOriginPatterns(List.of("http://192.168.45.98:*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
         config.setAllowCredentials(true);
         config.setAllowedHeaders(List.of("*"));
@@ -77,14 +77,13 @@ public class SecurityConfig {
     }
 
 
-    //test permit all
-//    @Bean
-//    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-//        return http
-//                .csrf(csrf -> csrf.disable())
-//                .httpBasic(httpBasic -> httpBasic.disable())
-//                .formLogin(form -> form.disable())
-//                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
-//                .build();
-//    }
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        return http
+                .csrf(csrf -> csrf.disable())
+                .httpBasic(httpBasic -> httpBasic.disable())
+                .formLogin(form -> form.disable())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .build();
+    }
 }

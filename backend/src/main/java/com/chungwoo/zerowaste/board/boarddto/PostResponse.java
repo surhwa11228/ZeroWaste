@@ -14,5 +14,5 @@ public class PostResponse {
     private String title;
     private Long createdAt;
     private String uid;
-    private String nickName;
+    private String nickname;
 }
