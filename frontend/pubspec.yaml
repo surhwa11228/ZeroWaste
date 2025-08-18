@@ -23,6 +23,8 @@ dependencies:
   http_parser: ^4.0.2
   mime: ^1.0.5
   image_picker: ^1.0.7
+  # firebase_dynamic_links: ^6.0.9
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:
