@@ -126,11 +126,11 @@ class AuthService {
 
   //저장된 accessToken 가져오기
   Future<String?> getAccessToken() async {
-    Fluttertoast.showToast(
-      msg: "로그인이 필요합니다. ${await _storage.read(key: 'accessToken')}",
-      toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.BOTTOM,
-    );
+    // Fluttertoast.showToast(
+    //   msg: "로그인이 필요합니다. ${await _storage.read(key: 'accessToken')}",
+    //   toastLength: Toast.LENGTH_SHORT,
+    //   gravity: ToastGravity.BOTTOM,
+    // );
     return await _storage.read(key: 'accessToken');
   }
 

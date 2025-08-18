@@ -160,7 +160,6 @@ class BoardService {
     final res = await _dio.post(_comment(boardName, postId), data: body);
     final data = unwrapDataMapped<PostResult>(res, PostResult.fromJson);
     return data;
-    ;
   }
 
   /// 댓글 삭제 (ApiResponse<Void>)
