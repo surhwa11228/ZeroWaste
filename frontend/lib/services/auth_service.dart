@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'package:flutter_project/utils/api_enveloper.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class AuthService {
   final _auth = FirebaseAuth.instance;
@@ -109,7 +111,9 @@ class AuthService {
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final res = jsonDecode(response.body);
+      final data = res['data'];
+
       final accessToken = data['accessToken'];
       final refreshToken = data['refreshToken'];
 
@@ -122,6 +126,11 @@ class AuthService {
 
   //저장된 accessToken 가져오기
   Future<String?> getAccessToken() async {
+    Fluttertoast.showToast(
+      msg: "로그인이 필요합니다. ${await _storage.read(key: 'accessToken')}",
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+    );
     return await _storage.read(key: 'accessToken');
   }
 

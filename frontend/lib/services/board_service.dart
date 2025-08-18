@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter_project/utils/api_enveloper.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
@@ -8,9 +9,12 @@ import 'network.dart';
 import '../models/board_models.dart';
 
 class BoardService {
-  BoardService._();
+  final _network = Network();
+  BoardService._() {
+    _network.init();
+  }
   static final instance = BoardService._();
-  Dio get _dio => Network().dio;
+  Dio get _dio => _network.dio;
 
   // String _base(String boardName) => '/board/$boardName';
   String _post(String boardName) => '/board/$boardName/post';
@@ -83,12 +87,8 @@ class BoardService {
     final form = FormData.fromMap(fields);
     final res = await _dio.post(_post(boardName), data: form);
 
-    final body = res.data as Map<String, dynamic>;
-    final api = ApiResponse.fromJson(
-      body,
-      (data) => PostResult.fromJson(Map<String, dynamic>.from(data as Map)),
-    );
-    return api.data!;
+    final data = unwrapDataMapped<PostResult>(res, PostResult.fromJson);
+    return data;
   }
 
   /// 수정 (multipart) (ApiResponse<PostResult>)
@@ -140,10 +140,8 @@ class BoardService {
   /// 댓글 목록 (List<Comment>) – 래퍼 없이 바로 리스트 반환
   Future<List<BoardComment>> comments(String boardName, String postId) async {
     final res = await _dio.get(_comments(boardName, postId));
-    final list = (res.data as List?) ?? const [];
-    return list
-        .map((e) => BoardComment.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
+    final list = unwrapDataListMapped<BoardComment>(res, BoardComment.fromJson);
+    return list;
     // 서버에서 Comment 클래스로 직렬화 → {id, uid, content, parentId, createdAt}
   }
 
@@ -160,7 +158,9 @@ class BoardService {
       'parentId': parentId,
     };
     final res = await _dio.post(_comment(boardName, postId), data: body);
-    return PostResult.fromJson(Map<String, dynamic>.from(res.data as Map));
+    final data = unwrapDataMapped<PostResult>(res, PostResult.fromJson);
+    return data;
+    ;
   }
 
   /// 댓글 삭제 (ApiResponse<Void>)

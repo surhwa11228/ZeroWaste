@@ -135,6 +135,9 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
                           );
                         }
                         final comments = csnap.data ?? [];
+                        print(
+                          "csnap.data runtimeType = ${csnap.data.runtimeType}",
+                        );
                         if (comments.isEmpty) {
                           return const Padding(
                             padding: EdgeInsets.symmetric(vertical: 12),

@@ -3,12 +3,14 @@ import 'package:flutter_project/models/report_models.dart';
 import 'package:flutter_project/utils/api_enveloper.dart';
 import 'network.dart';
 
-
 class ReportSearchService {
-  ReportSearchService._();
+  final _network = Network();
+  ReportSearchService._() {
+    _network.init();
+  }
   static final instance = ReportSearchService._();
 
-  Dio get _dio => Network().dio;
+  Dio get _dio => _network.dio;
 
   static const _base = '/report/search';
   static const _my = '/report/my';
@@ -18,7 +20,8 @@ class ReportSearchService {
     required double centerLat,
     required double centerLng,
     required double radius, // meters
-    String? wasteCategory,  // 'CIGARETTE_BUTT' | 'GENERAL_WASTE' | 'FOOD_WASTE' | 'OTHERS'
+    String?
+    wasteCategory, // 'CIGARETTE_BUTT' | 'GENERAL_WASTE' | 'FOOD_WASTE' | 'OTHERS'
     CancelToken? cancelToken,
   }) async {
     final body = <String, dynamic>{
@@ -30,31 +33,28 @@ class ReportSearchService {
     };
 
     try {
-      final res = await _dio.post(
-        _base,
-        data: body,
-        cancelToken: cancelToken,
-      );
+      final res = await _dio.post(_base, data: body, cancelToken: cancelToken);
 
       final summaries = unwrapDataListMapped<ReportSummary>(
-        res, (m) => ReportSummary.fromJson(m),);
+        res,
+        (m) => ReportSummary.fromJson(m),
+      );
       return summaries;
     } on DioException catch (e) {
       throw Exception(extractDioMessage(e));
     }
   }
 
-
   Future<List<DetailedReportSummary>> searchMyReports({
     DateTime? startAfter,
     CancelToken? cancelToekn,
-  }) async{
+  }) async {
     final qp = <String, dynamic>{
       if (startAfter != null)
         'startAfter': startAfter.toUtc().millisecondsSinceEpoch,
     };
 
-    try{
+    try {
       final res = await _dio.get(
         _my,
         queryParameters: qp.isNotEmpty ? null : qp,
@@ -62,11 +62,11 @@ class ReportSearchService {
       );
 
       final summaries = unwrapDataListMapped<DetailedReportSummary>(
-        res, (m) => DetailedReportSummary.fromJson(m),
+        res,
+        (m) => DetailedReportSummary.fromJson(m),
       );
       return summaries;
-
-    } on DioException catch (e){
+    } on DioException catch (e) {
       throw Exception(extractDioMessage(e));
     }
   }

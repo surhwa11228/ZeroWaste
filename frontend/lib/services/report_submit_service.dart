@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_project/models/report_models.dart';
@@ -7,11 +6,13 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import 'package:flutter_project/services/network.dart';
 
-
-class ReportService{
-  ReportService._();
+class ReportService {
+  final _network = Network();
+  ReportService._() {
+    _network.init();
+  }
   static final instance = ReportService._();
-  Dio get _dio => Network().dio;
+  Dio get _dio => _network.dio;
 
   static const _base = '/report';
 
@@ -20,7 +21,7 @@ class ReportService{
     required double gpsLng,
     required double selectedLat,
     required double selectedLng,
-    required String wasteCategory
+    required String wasteCategory,
   }) async {
     try {
       final body = <String, dynamic>{
@@ -28,7 +29,7 @@ class ReportService{
         'gpsLng': gpsLng,
         'selectedLat': selectedLat,
         'selectedLng': selectedLng,
-        'wasteCategory': wasteCategory
+        'wasteCategory': wasteCategory,
       };
 
       final res = await _dio.post(

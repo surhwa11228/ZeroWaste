@@ -31,10 +31,9 @@ class _MapScreenState extends State<MapScreen> {
           },
         ),
       )
-      ..loadFlutterAsset('assets/map.html'); // map.html 경로 확인
+      ..loadFlutterAsset('assets/map/map.html');
   }
 
-  // KakaoBridge.postMessage(...) 수신
   void _onJsMessage(JavaScriptMessage msg) {
     final raw = msg.message;
     // 간단 형태('KAKAO_SDK_LOADED' 등) 혹은 JSON
@@ -117,11 +116,8 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  // 화면 하단 버튼: "이 위치로 제보"
   Future<void> _onPickHere() async {
     if (!_mapReady) return;
-    // map.html에 있는 map 객체의 center를 읽어 KakaoBridge로 다시 보내는 JS를 실행
-    // → onMessageReceived에서 'location_selected'를 받아 네비게이션
     await _web.runJavaScript('''
       (function(){
         if(!window.map){ KakaoBridge.postMessage('KAKAO_NOT_READY'); return; }
@@ -143,15 +139,11 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _goReportCreate(LatLng target) {
-    // 1) 제보 작성 화면으로 이동
     Navigator.pushNamed(
       context,
       '/report/create',
       arguments: {'lat': target.lat, 'lng': target.lng},
     );
-
-    // 2) 혹은 현재 화면을 닫고 좌표만 반환
-    // Navigator.pop(context, {'lat': target.lat, 'lng': target.lng});
   }
 
   @override
@@ -218,7 +210,6 @@ class _MapScreenState extends State<MapScreen> {
   }
 }
 
-// 간단 LatLng 모델 (google_maps_flutter를 안 쓰는 경우를 위해 로컬 정의)
 class LatLng {
   final double lat;
   final double lng;
