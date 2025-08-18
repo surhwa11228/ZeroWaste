@@ -35,7 +35,7 @@ public class AuthController {
 
     }
 
-    @PostMapping("/auth/refresh")
+    @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<AccessTokenResponse>> refresh(@RequestBody @Valid RefreshRequest request) {
         AccessTokenResponse newTokens = authService.refresh(request.getRefreshToken());
         return ResponseEntity.status(HttpStatus.OK)
