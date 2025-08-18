@@ -12,6 +12,8 @@ import 'screens/admin_dashboard_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/board_list_screen.dart';
+import 'screens/board_write_screen.dart';
+import 'screens/board_detail_screen.dart';
 import 'screens/report_list_screen.dart';
 
 Future<void> main() async {
@@ -62,6 +64,17 @@ class ZeroWasteApp extends StatelessWidget {
         '/admin': (_) => const AdminDashboardScreen(),
         '/board': (_) => const BoardListScreen(),
         '/reportList': (_) => const ReportListScreen(),
+        '/boardWrite': (ctx) {
+          final boardName =
+              ModalRoute.of(ctx)!.settings.arguments as String? ?? 'freeBoard';
+          return BoardWriteScreen(boardName: boardName);
+        },
+        '/boardDetail': (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments as Map?;
+          final boardName = args?['boardName'] as String? ?? 'freeBoard';
+          final postId = args?['postId'] as String;
+          return BoardDetailScreen(boardName: boardName, postId: postId);
+        },
       },
     );
   }
