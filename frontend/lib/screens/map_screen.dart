@@ -88,10 +88,10 @@ class _MapScreenState extends State<MapScreen> {
       // 'MAP_INIT_DONE' 같은 단순 문자열은 무시
       return;
     }
-    final type = data?['type'];
+    final type = data['type'];
 
     if (type == 'location_selected') {
-      final lat = (data!['lat'] as num).toDouble();
+      final lat = (data['lat'] as num).toDouble();
       final lng = (data['lng'] as num).toDouble();
 
       // 1) 카메라 촬영
@@ -135,7 +135,6 @@ class _MapScreenState extends State<MapScreen> {
     final Color chipText = scheme.onSurfaceVariant; // 미선택 글자
     final Color chipBorder = scheme.outlineVariant; // 미선택 테두리
     final Color chipSelectedBg = const Color(0xFF2F7D32); // ✅ 선택 배경(브랜드 그린)
-    final Color chipSelectedText = Colors.white; // 선택 글자
 
     return showModalBottomSheet<String>(
       context: context,

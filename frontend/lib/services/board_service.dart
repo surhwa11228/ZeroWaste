@@ -1,4 +1,3 @@
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:convert';
 import 'package:dio/dio.dart';
@@ -23,7 +22,7 @@ class BoardService {
   Future<PagedResult<BoardSummary>> list({
     required String boardName,
     String? category,
-    Long? startAfter,
+    int? startAfter,
   }) async {
     final res = await _dio.get(
       _base(boardName),
@@ -43,11 +42,6 @@ class BoardService {
     final items = raw
         .map((e) => BoardSummary.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
-
-    // 커서 페이징: 다음 요청용 커서(필요 시 사용)
-    final Long? nextStartAfter = raw.isNotEmpty
-        ? (raw.last as Map)['createAt']
-        : null;
 
     // 서버가 page/size/total 메타를 안 주므로 적당히 채워 반환
     // 프로젝트에서 커서 전용 모델이 있다면 그걸 쓰는 걸 추천!

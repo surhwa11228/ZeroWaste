@@ -134,36 +134,6 @@ class _BoardListScreenState extends State<BoardListScreen> {
   }
 }
 
-class _Thumb extends StatelessWidget {
-  final String? url;
-  const _Thumb({this.url});
-
-  @override
-  Widget build(BuildContext context) {
-    final placeholder = Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).colorScheme.surfaceVariant,
-      ),
-      child: const Icon(Icons.photo_outlined),
-    );
-    if (url == null || url!.isEmpty) return placeholder;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.network(
-        url!,
-        width: 56,
-        height: 56,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => placeholder,
-      ),
-    );
-  }
-}
-
 // 에러 메시지
 String _prettyError(Object? e) {
   if (e == null) return '';

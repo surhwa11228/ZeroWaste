@@ -22,16 +22,6 @@ class BoardSummary {
       authorName: json['nickname'] as String,
     );
   }
-
-  static int _asInt(dynamic v) {
-    if (v is int) return v;
-    if (v is String) {
-      final n = int.tryParse(v.trim());
-      if (n != null) return n;
-    }
-    if (v is num) return v.toInt();
-    throw FormatException('Invalid id: $v'); // 디버깅에 도움
-  }
 }
 
 class BoardPost {

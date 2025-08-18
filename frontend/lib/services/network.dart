@@ -12,7 +12,7 @@ class Network {
           BaseOptions(
             baseUrl: const String.fromEnvironment(
               'API_BASE_URL',
-              defaultValue: 'http://192.168.45.141:8080/api',
+              defaultValue: 'http://192.168.45.98:8080/api',
             ),
             connectTimeout: const Duration(seconds: 10),
             receiveTimeout: const Duration(seconds: 20),
