@@ -1,128 +1,134 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>ZeroWaste Kakao Map</title>
-  <style>
-    html, body, #map { height: 100%; margin: 0; padding: 0; }
-    #map { position: relative; }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZeroWaste Map</title>
 
-    #selectOverlay {
-      position: absolute; display: none; transform: translate(-50%, -100%);
-      background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.2);
-      padding: 8px 10px; font-size: 14px; user-select: none;
-      z-index: 9999;
-      pointer-events: auto;
-      /* 중앙 고정 버튼처럼 보이게 가운데에 배치 */
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
+  <style>
+    html, body {
+      width: 100vw; height: 100vh;
+      margin: 0; padding: 0; overflow: hidden;
+      background: #fff;
     }
-    #selectOverlay .btn {
-      border: 0; border-radius: 8px; padding: 6px 10px; font-weight: 700;
-      background: #2f7d32; color: #fff; cursor: pointer;
+    /* 지도가 전체 화면을 덮도록 고정 */
+    #map {
+      position: fixed; inset: 0;
+      width: 100vw; height: 100vh;
+      display: block; max-width: none !important;
+      z-index: 0;
     }
-    #selectOverlay .txt { margin-bottom: 6px; font-size: 12px; opacity: .8; text-align:center; }
+    /* 혹시 외부 스타일의 max-width 영향 차단 */
+    img, svg, canvas { max-width: none !important; }
   </style>
-  <script>
-    window.onerror = function(msg, src, line, col, err){
-      try { KakaoBridge.postMessage(JSON.stringify({type:'js_error', msg, src, line, col})); } catch(e) {}
-    };
-    function post(msg){ try { KakaoBridge.postMessage(msg); } catch(e) { console.log(msg); } }
-  </script>
-  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=a9485d1836815b45b710a9e381f79806"
-          onload="post('KAKAO_SDK_LOADED')"
-          onerror="post('KAKAO_SDK_ERROR')"></script>
+
+  <!-- 카카오 지도 SDK: YOUR_KAKAO_APP_KEY를 실제 앱키로 교체 -->
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=a9485d1836815b45b710a9e381f79806"></script>
 </head>
 <body>
-  <div id="map">
-    <div id="selectOverlay">
-      <div id="coordText" class="txt">위치 선택됨</div>
-      <button id="pickBtn" class="btn">이 위치로 제보</button>
-    </div>
-  </div>
+  <div id="map"></div>
 
-<script>
-  let map; let centerMarker; let myLocationMarker;
+  <script>
+    let map;
+    // Flutter에서 추가한 마커 보관 (필터에 사용)
+    // 형식: { marker, category }
+    const markers = [];
 
-  // 중앙 선택 좌표
-  let selectedLatLng = null;
-  const overlayEl = document.getElementById('selectOverlay');
-  const coordTextEl = document.getElementById('coordText');
+    // 카테고리 → 색상 매핑
+    const CATEGORY_COLORS = {
+      'CIGARETTE_BUTT': '#e53935', // 빨강
+      'GENERAL_WASTE' : '#1e88e5', // 파랑
+      'FOOD_WASTE'    : '#43a047', // 초록
+      'OTHERS'        : '#6d4c41', // 브라운
+    };
 
-  overlayEl.addEventListener('click', (ev) => ev.stopPropagation());
-  overlayEl.addEventListener('touchstart', (ev) => ev.stopPropagation(), { passive: true });
+    function init() {
+      const container = document.getElementById('map');
+      map = new kakao.maps.Map(container, {
+        center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 시청
+        level: 2  //Default: 4
+      });
 
-  function initMap(lat, lng, level){
-    if(!window.kakao || !kakao.maps){ post('KAKAO_NOT_READY'); return; }
-    const container = document.getElementById('map');
-    const options = { center: new kakao.maps.LatLng(lat||37.5665, lng||126.9780), level: level||4 };
-    map = new kakao.maps.Map(container, options);
+      // 지도 이동/로드 이벤트 → 중심 좌표를 Flutter로 전달
+      kakao.maps.event.addListener(map, 'dragend', emitCenter);
+      kakao.maps.event.addListener(map, 'tilesloaded', emitCenter);
 
-    // 화면 중앙에 고정된 마커(지도의 center를 따라감)
-    centerMarker = new kakao.maps.Marker({ position: map.getCenter(), zIndex: 90 });
-    centerMarker.setMap(map);
-
-    // 초기 텍스트/상태
-    selectedLatLng = map.getCenter();
-    coordTextEl.textContent = `위도 ${selectedLatLng.getLat().toFixed(5)} / 경도 ${selectedLatLng.getLng().toFixed(5)}`;
-    overlayEl.style.display = 'block';
-
-    // 지도의 중심이 바뀔 때마다 선택 좌표도 갱신
-    kakao.maps.event.addListener(map, 'center_changed', function(){
-      selectedLatLng = map.getCenter();
-      if (centerMarker) centerMarker.setPosition(selectedLatLng);
-      coordTextEl.textContent = `위도 ${selectedLatLng.getLat().toFixed(5)} / 경도 ${selectedLatLng.getLng().toFixed(5)}`;
-    });
-
-    // "이 위치로 제보" 버튼 → 현재 중심 좌표 전달
-    document.getElementById('pickBtn').addEventListener('click', function(){
-      if(!selectedLatLng) return;
-      post(JSON.stringify({
-        type: 'location_selected',
-        lat: selectedLatLng.getLat(),
-        lng: selectedLatLng.getLng()
-      }));
-    });
-
-    post('MAP_INIT_DONE');
-  }
-
-  function moveTo(lat, lng){
-    if(!map) return;
-    const pos = new kakao.maps.LatLng(lat, lng);
-    map.setCenter(pos);
-    if(centerMarker) centerMarker.setPosition(pos);
-    selectedLatLng = pos;
-    coordTextEl.textContent = `위도 ${pos.getLat().toFixed(5)} / 경도 ${pos.getLng().toFixed(5)}`;
-    overlayEl.style.display = 'block';
-  }
-
-  // 내 위치 마커
-  function setMyLocation(lat, lng){
-    if(!map) return;
-    const pos = new kakao.maps.LatLng(lat, lng);
-    if (!myLocationMarker) {
-      myLocationMarker = new kakao.maps.Marker({ position: pos, zIndex: 100 });
-      myLocationMarker.setMap(map);
-    } else {
-      myLocationMarker.setPosition(pos);
-      if(!myLocationMarker.getMap()) myLocationMarker.setMap(map);
+      // Flutter에 준비 완료 신호
+      if (window.MapChannel) {
+        window.MapChannel.postMessage('READY');
+      }
     }
-  }
 
-  // 선택 해제(오버레이 숨김만 유지)
-  function clearSelection(){
-    selectedLatLng = null;
-    overlayEl.style.display = 'none';
-  }
+    // 현재 중심 좌표를 "lat,lng" 문자열로 Flutter에 전송
+    function emitCenter() {
+      if (!map || !window.MapChannel) return;
+      const c = map.getCenter();
+      window.MapChannel.postMessage(`${c.getLat()},${c.getLng()}`);
+    }
 
-  // 외부 노출
-  window.initMap = initMap;
-  window.moveTo = moveTo;
-  window.setMyLocation = setMyLocation;
-  window.clearSelection = clearSelection;
-</script>
+    // ────────────── Flutter에서 호출할 공개 함수들 ──────────────
+
+    // 중심 이동
+    window.setCenter = function(lat, lng) {
+      if (!map) return;
+      map.setCenter(new kakao.maps.LatLng(lat, lng));
+      // 이동 후 중심 재전송(선택)
+      emitCenter();
+    };
+
+    // 줌 레벨 설정 (숫자 작을수록 확대됨)
+    window.setZoomLevel = function(level) {
+      if (!map) return;
+      map.setLevel(Number(level));
+    };
+
+    // 마커 추가 (카테고리별 색상 원형 SVG)
+    window.addMarker = function(lat, lng, category) {
+      if (!map) return;
+
+      const color = CATEGORY_COLORS[category] || '#ff5252';
+      const svg = `
+        <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="14" cy="14" r="10" fill="${color}" stroke="white" stroke-width="2"/>
+        </svg>
+      `;
+      const markerImage = new kakao.maps.MarkerImage(
+        'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+        new kakao.maps.Size(28, 28),
+        { offset: new kakao.maps.Point(14, 14) } // 중심 정렬
+      );
+
+      const marker = new kakao.maps.Marker({
+        position: new kakao.maps.LatLng(lat, lng),
+        image: markerImage,
+        map,
+      });
+
+      markers.push({ marker, category });
+
+      // (디버그) 추가 확인 로그를 Flutter로
+      if (window.MapChannel) {
+        window.MapChannel.postMessage(`ADDED:${lat},${lng},${category},count=${markers.length}`);
+      }
+    };
+
+    // 카테고리 필터: null/undefined 이면 전체 표시
+    window.filterByCategory = function(categoryOrNull) {
+      markers.forEach(({ marker, category }) => {
+        const show = !categoryOrNull || category === categoryOrNull;
+        marker.setMap(show ? map : null);
+      });
+    };
+
+    // 모든 마커 제거
+    window.clearMarkers = function() {
+      markers.forEach(({ marker }) => marker.setMap(null));
+      markers.length = 0;
+    };
+
+    // ──────────────────────────────────────────────────────────
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
 </body>
 </html>

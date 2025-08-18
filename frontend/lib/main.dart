@@ -6,7 +6,8 @@ import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/report_screen.dart';
-import 'screens/report_detail_screen.dart';
+import 'screens/report_list_screen.dart';
+import 'screens/report_create_screen.dart';
 import 'screens/mypage_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -14,7 +15,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/board_list_screen.dart';
 import 'screens/board_write_screen.dart';
 import 'screens/board_detail_screen.dart';
-import 'screens/report_list_screen.dart';
 import 'screens/verify_email_screen.dart';
 
 Future<void> main() async {
@@ -63,11 +63,11 @@ class ZeroWasteApp extends StatelessWidget {
         },
         '/home': (_) => const HomeScreen(),
         '/report': (_) => const ReportScreen(),
-        '/report-detail': (_) => const ReportDetailScreen(),
+        '/report/create': (_) => const ReportCreateScreen(),
+        '/report/my': (_) => const MyReportsScreen(),
         '/mypage': (_) => const MyPageScreen(),
         '/admin': (_) => const AdminDashboardScreen(),
         '/board': (_) => const BoardListScreen(),
-        '/reportList': (_) => const ReportListScreen(),
         '/boardWrite': (ctx) {
           final boardName =
               ModalRoute.of(ctx)!.settings.arguments as String? ?? 'freeBoard';

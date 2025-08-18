@@ -1,7 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+
+import '../utils/waste_category_enum.dart'; // WasteCategory, WasteCategoryCodec(.api)
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -11,197 +12,261 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  late final WebViewController _web;
-  bool _mapReady = false;
-  LatLng? _center; // 현재 지도 중심(선택된 좌표)
-  bool _loading = true;
+  late final WebViewController _controller;
+  bool _mapReady = false; // map.html에서 READY 신호 수신 여부
+  LatLng? _currentCenter; // JS → "lat,lng" 수신해 반영
+  WasteCategory? _filter; // 상단 카테고리 '표시 필터'
+
+  static const Map<WasteCategory, String> _labels = {
+    WasteCategory.cigaretteButt: '담배꽁초',
+    WasteCategory.generalWaste: '일반쓰레기',
+    WasteCategory.foodWaste: '음식물',
+    WasteCategory.others: '기타',
+  };
 
   @override
   void initState() {
     super.initState();
-    _web = WebViewController()
+
+    _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel('KakaoBridge', onMessageReceived: _onJsMessage)
-      ..setBackgroundColor(Colors.transparent)
+      ..addJavaScriptChannel(
+        'MapChannel',
+        onMessageReceived: (JavaScriptMessage msg) async {
+          final s = msg.message.trim();
+
+          // map.html에서 초기화 완료 시 'READY'를 보내도록 되어 있음
+          if (s == 'READY') {
+            setState(() => _mapReady = true);
+            // 초기 필터 상태 재적용 (있다면)
+            await _applyFilterToWebView();
+            return;
+          }
+
+          // (선택) 디버그 로그: ADDED:lat,lng,category,count=n
+          if (s.startsWith('ADDED:')) {
+            // print('[MAP JS] $s');
+            return;
+          }
+
+          // "lat,lng" 형식 수신하여 중심 저장
+          final parts = s.split(',');
+          if (parts.length >= 2) {
+            final lat = double.tryParse(parts[0]);
+            final lng = double.tryParse(parts[1]);
+            if (lat != null && lng != null) {
+              setState(() => _currentCenter = LatLng(lat, lng));
+            }
+          }
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
-            // HTML 로드가 끝나면, 위치 권한을 요청하고 현재 위치로 initMap 호출
-            await _initWithMyLocation();
+            // 페이지 로딩 완료 후, 혹시 READY 신호보다 먼저 JS 호출이 필요하면 여기서도 보호
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+            if (!_mapReady) {
+              // map.html이 tilesloaded에서 emitCenter()를 쏘므로 대기
+            }
           },
         ),
       )
       ..loadFlutterAsset('assets/map/map.html');
   }
 
-  void _onJsMessage(JavaScriptMessage msg) {
-    final raw = msg.message;
-    // 간단 형태('KAKAO_SDK_LOADED' 등) 혹은 JSON
-    if (raw == 'KAKAO_SDK_LOADED' || raw == 'MAP_INIT_DONE') {
-      // 필요 시 로깅
-      return;
-    }
-    if (raw == 'KAKAO_SDK_ERROR' || raw == 'KAKAO_NOT_READY') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('지도 SDK 로드에 실패했습니다.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    try {
-      final data = jsonDecode(raw) as Map<String, dynamic>;
-      final type = data['type'] as String?;
-      if (type == 'js_error') {
-        // map.html에서 window.onerror 전달
-        return;
-      }
-      if (type == 'map_click') {
-        // (참고) map.html에서 클릭 이벤트를 보낼 수도 있으나, 우리는 중심좌표를 사용
-        return;
-      }
-      if (type == 'location_selected') {
-        final lat = (data['lat'] as num).toDouble();
-        final lng = (data['lng'] as num).toDouble();
-        setState(() => _center = LatLng(lat, lng));
-
-        // 여기서 바로 제보 화면으로 이동하거나, 외부 버튼에서만 이동해도 된다.
-        // 현재 설계는 "화면 버튼"을 눌렀을 때 JS로 location_selected를 강제로 발생시킨 뒤 이 콜백에서 네비게이션 한다.
-        _goReportCreate(LatLng(lat, lng));
-      }
-    } catch (_) {
-      // ignore
-    }
-  }
-
-  Future<void> _initWithMyLocation() async {
-    try {
-      // 권한
-      LocationPermission p = await Geolocator.checkPermission();
-      if (p == LocationPermission.denied ||
-          p == LocationPermission.deniedForever) {
-        p = await Geolocator.requestPermission();
-      }
-
-      // 현재 위치 (실패 시 기본값 사용)
-      Position? pos;
-      try {
-        pos = await Geolocator.getCurrentPosition();
-      } catch (_) {}
-
-      final lat = pos?.latitude ?? 37.5665; // 서울시청 기본값
-      final lng = pos?.longitude ?? 126.9780;
-
-      // map.html의 initMap(lat,lng,level) 호출
-      await _web.runJavaScript('initMap($lat,$lng,4);');
-      // 중심좌표 내부 상태도 갱신
-      setState(() {
-        _mapReady = true;
-        _loading = false;
-        _center = LatLng(lat, lng);
-      });
-
-      // (선택) 내 위치 마커 표시
-      await _web.runJavaScript('setMyLocation($lat,$lng);');
-    } catch (e) {
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('지도를 초기화하지 못했습니다: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _onPickHere() async {
-    if (!_mapReady) return;
-    await _web.runJavaScript('''
-      (function(){
-        if(!window.map){ KakaoBridge.postMessage('KAKAO_NOT_READY'); return; }
-        var c = map.getCenter();
-        KakaoBridge.postMessage(JSON.stringify({type:'location_selected', lat: c.getLat(), lng: c.getLng()}));
-      })();
-    ''');
-  }
-
   Future<void> _moveToMyLocation() async {
-    try {
-      final pos = await Geolocator.getCurrentPosition();
-      await _web.runJavaScript('moveTo(${pos.latitude}, ${pos.longitude});');
-    } catch (_) {
+    final perm = await Geolocator.checkPermission();
+    var ensured = perm;
+    if (perm == LocationPermission.denied) {
+      ensured = await Geolocator.requestPermission();
+    }
+    if (ensured == LocationPermission.denied ||
+        ensured == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('위치 권한이 필요합니다. 설정에서 허용해주세요.')),
+        );
+      }
+      return;
+    }
+
+    final pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.best,
+    );
+
+    if (!_mapReady) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+
+    await _controller.runJavaScript(
+      'setCenter(${pos.latitude}, ${pos.longitude});',
+    );
+  }
+
+  // 제보하기: 현재 지도 중심만 넘기고, 카테고리 선택은 제보 화면에서
+  Future<void> _onReport() async {
+    if (_currentCenter == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('현재 위치를 가져오지 못했습니다.')));
+      ).showSnackBar(const SnackBar(content: Text('지도의 중앙 위치를 정해주세요.')));
+      return;
+    }
+
+    final result = await Navigator.pushNamed(
+      context,
+      '/report/create',
+      arguments: {'lat': _currentCenter!.lat, 'lng': _currentCenter!.lng},
+    );
+
+    // 제보 성공 시: 반환값으로 넘어온 좌표/카테고리로 JS의 addMarker 호출
+    if (result is Map && result['ok'] == true) {
+      final double lat = (result['lat'] as num).toDouble();
+      final double lng = (result['lng'] as num).toDouble();
+      final String categoryApi =
+          result['category'] as String; // e.g. "CIGARETTE_BUTT"
+
+      if (!_mapReady) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+
+      await _controller.runJavaScript("addMarker($lat, $lng, '$categoryApi');");
+
+      // 필터 때문에 방금 추가한 마커가 숨겨지지 않도록, 동일 카테고리로 필터하거나 전체로 풀기
+      if (_filter != null && _filter!.api != categoryApi) {
+        // 방금 추가된 카테고리만 보이게 바꿈
+        setState(() => _filter = WasteCategoryCodec.fromApi(categoryApi));
+        await _applyFilterToWebView();
+      }
     }
   }
 
-  void _goReportCreate(LatLng target) {
-    Navigator.pushNamed(
-      context,
-      '/report/create',
-      arguments: {'lat': target.lat, 'lng': target.lng},
+  // 상단 필터 칩: 같은 걸 다시 누르면 해제 (null=전체 표시)
+  Widget _filterChip(String label, WasteCategory value) {
+    final bool selected = _filter == value;
+    return GestureDetector(
+      onTap: () async {
+        setState(() => _filter = selected ? null : value);
+        await _applyFilterToWebView();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(
+            color: selected ? Colors.green : Colors.grey.shade400,
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.green : Colors.black87,
+            fontSize: 15,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
     );
+  }
+
+  // 과거 코드 호환: _categoryChip 호출을 _filterChip으로 위임
+  Widget _categoryChip(String label, WasteCategory value) =>
+      _filterChip(label, value);
+
+  Future<void> _applyFilterToWebView() async {
+    if (!_mapReady) return;
+    final filter = _filter?.api; // null이면 전체 표시
+    if (filter == null) {
+      await _controller.runJavaScript("filterByCategory(null);");
+    } else {
+      await _controller.runJavaScript("filterByCategory('$filter');");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('위치 선택'),
+        title: const Text('지도'),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            onPressed: _moveToMyLocation,
-            icon: const Icon(Icons.my_location),
-            tooltip: '내 위치로',
+            icon: const Icon(Icons.refresh),
+            tooltip: '새로고침',
+            onPressed: () async {
+              await _controller.reload();
+              // 새로고침 후 READY 수신 시 _applyFilterToWebView()가 불림
+            },
           ),
         ],
       ),
       body: Stack(
+        fit: StackFit.expand,
+        alignment: Alignment.center,
         children: [
-          WebViewWidget(controller: _web),
+          // 지도(WebView)
+          Positioned.fill(child: WebViewWidget(controller: _controller)),
 
-          // 로딩 인디케이터
-          if (_loading) const Center(child: CircularProgressIndicator()),
+          // 중앙 고정 마커 (Flutter 오버레이) — 터치 통과
+          const IgnorePointer(
+            ignoring: true,
+            child: Align(
+              alignment: Alignment.center,
+              child: Icon(Icons.location_on, size: 48, color: Colors.red),
+            ),
+          ),
 
-          // 하단 고정 패널: 안내 + 선택 좌표 미리보기 + 제보 버튼
+          // 상단: 카테고리 "표시 필터"
           Positioned(
-            left: 16,
-            right: 16,
-            bottom: 24,
-            child: Card(
-              elevation: 8,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+            top: 12,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Wrap(
+                spacing: 8,
+                children: WasteCategory.values
+                    .map((wc) => _filterChip(_labels[wc]!, wc))
+                    .toList(),
               ),
-              child: Padding(
+            ),
+          ),
+
+          // 좌하단: 현재 위치로 이동
+          Positioned(
+            left: 15,
+            bottom: 15,
+            child: ClipOval(
+              child: Material(
+                color: Colors.white,
+                child: InkWell(
+                  onTap: _moveToMyLocation,
+                  child: const Padding(
+                    padding: EdgeInsets.all(1),
+                    child: Icon(Icons.my_location, size: 30),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 우하단: 제보하기
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 18,
+                  vertical: 14,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _center == null
-                          ? '지도를 움직여 가운데 핀 위치를 맞춰주세요'
-                          : '선택 위치: ${_center!.lat.toStringAsFixed(6)}, ${_center!.lng.toStringAsFixed(6)}',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _onPickHere,
-                        icon: const Icon(Icons.send),
-                        label: const Text('이 위치로 제보'),
-                      ),
-                    ),
-                  ],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              onPressed: _onReport,
+              icon: const Icon(Icons.edit),
+              label: const Text('제보하기'),
             ),
           ),
         ],
@@ -210,8 +275,9 @@ class _MapScreenState extends State<MapScreen> {
   }
 }
 
+// 간단한 LatLng 보조 클래스
 class LatLng {
   final double lat;
   final double lng;
-  LatLng(this.lat, this.lng);
+  const LatLng(this.lat, this.lng);
 }

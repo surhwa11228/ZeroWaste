@@ -1,50 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_project/services/report_facade.dart';
+import 'package:flutter_project/models/report_models.dart';
+import 'package:flutter_project/utils/waste_category_enum.dart';
 
-class ReportListScreen extends StatelessWidget {
-  const ReportListScreen({super.key});
+class MyReportsScreen extends StatefulWidget {
+  const MyReportsScreen({super.key});
+
+  @override
+  State<MyReportsScreen> createState() => _MyReportsScreenState();
+}
+
+class _MyReportsScreenState extends State<MyReportsScreen> {
+  List<DetailedReportSummary> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final items = await ReportFacade.instance.my();
+      setState(() => _items = items);
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final reports = [
-      {'title': '불법 투기 포대', 'address': '마포구 서교동 123-4'},
-      {'title': '무단 폐기 가구', 'address': '관악구 신림동 512-8'},
-      {'title': '대형 폐기물 방치', 'address': '강서구 등촌동 77-9'},
-    ];
-
     return Scaffold(
-      appBar: AppBar(title: const Text('제보 내역')),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: reports.length,
-        itemBuilder: (context, index) {
-          final item = reports[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              leading: Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: Theme.of(context).colorScheme.surfaceVariant,
-                ),
-                child: const Icon(Icons.photo_outlined),
-              ),
-              title: Text(
-                item['title']!,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text(item['address']!),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                // TODO: 상세 페이지로 이동
+      appBar: AppBar(title: const Text('내 제보')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(child: Text(_error!))
+          : ListView.separated(
+              itemCount: _items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (ctx, i) {
+                final it = _items[i];
+                return ListTile(
+                  title: Text(it.wasteCategory.api),
+                  subtitle: Text(
+                    '(${it.latitude.toStringAsFixed(5)}, ${it.longitude.toStringAsFixed(5)}) • '
+                    '${DateTime.fromMillisecondsSinceEpoch(it.reportedAt.millisecondsSinceEpoch)}',
+                  ),
+                  trailing: it.hasAdditionalInfo
+                      ? const Icon(Icons.info, color: Colors.green)
+                      : null,
+                );
               },
             ),
-          );
-        },
-      ),
     );
   }
 }

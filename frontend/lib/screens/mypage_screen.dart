@@ -71,7 +71,7 @@ class MyPageScreen extends StatelessWidget {
           onTap: () {
             Navigator.of(
               context,
-            ).push(MaterialPageRoute(builder: (_) => const ReportListScreen()));
+            ).push(MaterialPageRoute(builder: (_) => const MyReportsScreen()));
           },
         ),
         ListTile(
