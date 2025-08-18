@@ -47,7 +47,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         ActionCodeSettings(
           url:
               'https://zerowaste-ccae3.firebaseapp.com/__/auth/action?mode=action&oobCode=code/verified',
-          handleCodeInApp: false, // 딥링크 미사용(가장 간단)
+          handleCodeInApp: false,
         ),
       );
       if (!mounted) return;
@@ -160,7 +160,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('다시 확인'),
+                      : const Text('인증 완료'),
                 ),
               ),
               const Spacer(),

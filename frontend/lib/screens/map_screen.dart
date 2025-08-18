@@ -1,214 +1,226 @@
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:image_picker/image_picker.dart';
-
-import 'report_create_screen.dart';
-import 'package:flutter_project/services/location_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
+
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
 
 class _MapScreenState extends State<MapScreen> {
-  late final WebViewController _controller;
-  bool _pageLoaded = false;
-  final _picker = ImagePicker();
+  late final WebViewController _web;
+  bool _mapReady = false;
+  LatLng? _center; // 현재 지도 중심(선택된 좌표)
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
-      ..addJavaScriptChannel(
-        'KakaoBridge', // map.html과 동일
-        onMessageReceived: _onJsMessage,
-      )
+      ..addJavaScriptChannel('KakaoBridge', onMessageReceived: _onJsMessage)
+      ..setBackgroundColor(Colors.transparent)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
-            _pageLoaded = true;
-            await Future.delayed(const Duration(milliseconds: 100));
-            await initMap(37.5665, 126.9780, level: 4);
+            // HTML 로드가 끝나면, 위치 권한을 요청하고 현재 위치로 initMap 호출
+            await _initWithMyLocation();
           },
         ),
-      );
-
-    _loadHtml();
+      )
+      ..loadFlutterAsset('assets/map.html'); // map.html 경로 확인
   }
 
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  Future<void> _loadHtml() async {
-    final html = await rootBundle.loadString('assets/map/map.html');
-    await _controller.loadHtmlString(html, baseUrl: 'https://localhost');
-  }
-
-  Future<void> initMap(double lat, double lng, {int level = 4}) async {
-    if (!_pageLoaded) return;
-    await _controller.runJavaScript('window.initMap($lat, $lng, $level)');
-  }
-
-  Future<void> moveTo(double lat, double lng) async {
-    if (!_pageLoaded) return;
-    await _controller.runJavaScript('window.moveTo($lat, $lng)');
-  }
-
-  // 현 위치로 이동 + 내 위치 마커 표시
-  Future<void> goToCurrentLocation() async {
-    final pos = await LocationService.current();
-    if (pos == null) {
-      _toast('위치 권한이 필요합니다. 설정에서 켜주세요.');
+  // KakaoBridge.postMessage(...) 수신
+  void _onJsMessage(JavaScriptMessage msg) {
+    final raw = msg.message;
+    // 간단 형태('KAKAO_SDK_LOADED' 등) 혹은 JSON
+    if (raw == 'KAKAO_SDK_LOADED' || raw == 'MAP_INIT_DONE') {
+      // 필요 시 로깅
       return;
     }
-    final lat = pos.latitude;
-    final lng = pos.longitude;
-    await _controller.runJavaScript('window.setMyLocation($lat, $lng)');
-    await moveTo(lat, lng);
-  }
+    if (raw == 'KAKAO_SDK_ERROR' || raw == 'KAKAO_NOT_READY') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('지도 SDK 로드에 실패했습니다.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-  // ▼ JS → Flutter 메시지 처리 (지도 터치 후 "이 위치로 제보" 눌렀을 때)
-  Future<void> _onJsMessage(JavaScriptMessage msg) async {
-    final m = msg.message;
-
-    // 문자열/JSON 모두 수용
-    Map<String, dynamic>? data;
     try {
-      data = jsonDecode(m) as Map<String, dynamic>;
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final type = data['type'] as String?;
+      if (type == 'js_error') {
+        // map.html에서 window.onerror 전달
+        return;
+      }
+      if (type == 'map_click') {
+        // (참고) map.html에서 클릭 이벤트를 보낼 수도 있으나, 우리는 중심좌표를 사용
+        return;
+      }
+      if (type == 'location_selected') {
+        final lat = (data['lat'] as num).toDouble();
+        final lng = (data['lng'] as num).toDouble();
+        setState(() => _center = LatLng(lat, lng));
+
+        // 여기서 바로 제보 화면으로 이동하거나, 외부 버튼에서만 이동해도 된다.
+        // 현재 설계는 "화면 버튼"을 눌렀을 때 JS로 location_selected를 강제로 발생시킨 뒤 이 콜백에서 네비게이션 한다.
+        _goReportCreate(LatLng(lat, lng));
+      }
     } catch (_) {
-      // 'MAP_INIT_DONE' 같은 단순 문자열은 무시
-      return;
+      // ignore
     }
-    final type = data['type'];
+  }
 
-    if (type == 'location_selected') {
-      final lat = (data['lat'] as num).toDouble();
-      final lng = (data['lng'] as num).toDouble();
+  Future<void> _initWithMyLocation() async {
+    try {
+      // 권한
+      LocationPermission p = await Geolocator.checkPermission();
+      if (p == LocationPermission.denied ||
+          p == LocationPermission.deniedForever) {
+        p = await Geolocator.requestPermission();
+      }
 
-      // 1) 카메라 촬영
-      final picked = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1600,
-      );
-      if (picked == null) return; // 사용자 취소
-      final file = File(picked.path);
+      // 현재 위치 (실패 시 기본값 사용)
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition();
+      } catch (_) {}
 
-      // 2) 쓰레기 종류 선택
-      final kind = await _pickTrashKind(context);
-      if (kind == null) return;
+      final lat = pos?.latitude ?? 37.5665; // 서울시청 기본값
+      final lng = pos?.longitude ?? 126.9780;
 
-      // 3) 제보 작성 화면으로 이동
-      if (!mounted) return;
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ReportCreateScreen(
-            lat: lat,
-            lng: lng,
-            imageFile: file,
-            kind: kind,
-          ),
+      // map.html의 initMap(lat,lng,level) 호출
+      await _web.runJavaScript('initMap($lat,$lng,4);');
+      // 중심좌표 내부 상태도 갱신
+      setState(() {
+        _mapReady = true;
+        _loading = false;
+        _center = LatLng(lat, lng);
+      });
+
+      // (선택) 내 위치 마커 표시
+      await _web.runJavaScript('setMyLocation($lat,$lng);');
+    } catch (e) {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('지도를 초기화하지 못했습니다: $e'),
+          backgroundColor: Colors.red,
         ),
-      );
-
-      // (선택) 선택 상태 초기화
-      await _controller.runJavaScript(
-        'window.clearSelection && clearSelection();',
       );
     }
   }
 
-  Future<String?> _pickTrashKind(BuildContext context) async {
-    const kinds = ['일반쓰레기', '대형폐기물', '재활용', '음식물', '기타'];
+  // 화면 하단 버튼: "이 위치로 제보"
+  Future<void> _onPickHere() async {
+    if (!_mapReady) return;
+    // map.html에 있는 map 객체의 center를 읽어 KakaoBridge로 다시 보내는 JS를 실행
+    // → onMessageReceived에서 'location_selected'를 받아 네비게이션
+    await _web.runJavaScript('''
+      (function(){
+        if(!window.map){ KakaoBridge.postMessage('KAKAO_NOT_READY'); return; }
+        var c = map.getCenter();
+        KakaoBridge.postMessage(JSON.stringify({type:'location_selected', lat: c.getLat(), lng: c.getLng()}));
+      })();
+    ''');
+  }
 
-    final scheme = Theme.of(context).colorScheme;
-    final Color chipBg = scheme.surfaceVariant; // 미선택 배경
-    final Color chipText = scheme.onSurfaceVariant; // 미선택 글자
-    final Color chipBorder = scheme.outlineVariant; // 미선택 테두리
-    final Color chipSelectedBg = const Color(0xFF2F7D32); // ✅ 선택 배경(브랜드 그린)
+  Future<void> _moveToMyLocation() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition();
+      await _web.runJavaScript('moveTo(${pos.latitude}, ${pos.longitude});');
+    } catch (_) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('현재 위치를 가져오지 못했습니다.')));
+    }
+  }
 
-    return showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Wrap(
-          runSpacing: 12,
-          children: [
-            const Text(
-              '쓰레기 종류 선택',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: kinds
-                  .map(
-                    (k) => ChoiceChip(
-                      label: Text(k),
-                      selected: false,
-                      backgroundColor: chipBg,
-                      labelStyle: TextStyle(
-                        color: chipText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      selectedColor: chipSelectedBg,
-                      side: BorderSide(color: chipBorder),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      onSelected: (_) => Navigator.pop(ctx, k),
-                    ),
-                  )
-                  .toList(),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('취소'),
-              ),
-            ),
-          ],
-        ),
-      ),
+  void _goReportCreate(LatLng target) {
+    // 1) 제보 작성 화면으로 이동
+    Navigator.pushNamed(
+      context,
+      '/report/create',
+      arguments: {'lat': target.lat, 'lng': target.lng},
     );
+
+    // 2) 혹은 현재 화면을 닫고 좌표만 반환
+    // Navigator.pop(context, {'lat': target.lat, 'lng': target.lng});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('ZeroWaste 지도'),
-      ),
-      body: WebViewWidget(controller: _controller),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            onPressed: goToCurrentLocation,
+        title: const Text('위치 선택'),
+        actions: [
+          IconButton(
+            onPressed: _moveToMyLocation,
             icon: const Icon(Icons.my_location),
-            label: const Text('현위치'),
+            tooltip: '내 위치로',
           ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            onPressed: () => moveTo(36.3353, 127.4579),
-            icon: const Icon(Icons.map),
-            label: const Text('대전대학교로 이동'),
+        ],
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _web),
+
+          // 로딩 인디케이터
+          if (_loading) const Center(child: CircularProgressIndicator()),
+
+          // 하단 고정 패널: 안내 + 선택 좌표 미리보기 + 제보 버튼
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: Card(
+              elevation: 8,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _center == null
+                          ? '지도를 움직여 가운데 핀 위치를 맞춰주세요'
+                          : '선택 위치: ${_center!.lat.toStringAsFixed(6)}, ${_center!.lng.toStringAsFixed(6)}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _onPickHere,
+                        icon: const Icon(Icons.send),
+                        label: const Text('이 위치로 제보'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+// 간단 LatLng 모델 (google_maps_flutter를 안 쓰는 경우를 위해 로컬 정의)
+class LatLng {
+  final double lat;
+  final double lng;
+  LatLng(this.lat, this.lng);
 }
