@@ -74,11 +74,11 @@ public class AuthService {
         try {
             FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
             if (!decodedToken.isEmailVerified()) {
-                throw new EmailNotVerifiedException("Email not verified.");
+                throw new EmailNotVerifiedException("인증되지 않은 이메일");
             }
             return new LoginRequest(decodedToken.getUid(), decodedToken.getEmail());
         } catch (FirebaseAuthException e) {
-            throw new FirebaseIdTokenInvalidException("Invalid Firebase token", e);  // 커스텀 예외로 포장
+            throw new FirebaseIdTokenInvalidException("유효하지 않은 idToken", e);  // 커스텀 예외로 포장
         }
 
     }

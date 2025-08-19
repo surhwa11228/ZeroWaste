@@ -16,6 +16,8 @@ import java.util.Optional;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+
+    //@Valid에 의해 발생하는 MethodArgumentNotValidException을 처리
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidationError(MethodArgumentNotValidException e) {
         String message = Optional.ofNullable(e.getBindingResult().getFieldError())
@@ -25,12 +27,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(400, message));
     }
 
+    //Service 계층에서 던지는 BusinessException 계열 예외를 처리
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
         log.error(e.getMessage(), e);
         return ResponseEntity.status(e.getStatus())
                 .body(ApiResponse.error(e.getStatus().value(), e.getMessage()));
     }
+
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
