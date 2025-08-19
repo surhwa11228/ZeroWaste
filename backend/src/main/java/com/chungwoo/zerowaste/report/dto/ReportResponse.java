@@ -9,10 +9,12 @@ import lombok.experimental.SuperBuilder;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@SuperBuilder
+@Builder
 public class ReportResponse {
     private String documentId;
     private double latitude;
     private double longitude;
     private String wasteCategory;
+    private Long reportedAt;
+    private boolean hasAdditionalInfo;
 }

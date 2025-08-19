@@ -1,6 +1,5 @@
 package com.chungwoo.zerowaste.upload;
 
-import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
