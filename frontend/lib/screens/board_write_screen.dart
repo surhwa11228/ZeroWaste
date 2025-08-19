@@ -129,12 +129,12 @@ class _BoardWriteScreenState extends State<BoardWriteScreen> {
       Navigator.pop(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('작성 완료 (id: ${result.postId})')));
+      ).showSnackBar(SnackBar(content: Text('게시글이 작성되었습니다.')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('작성 실패: $e')));
+      ).showSnackBar(SnackBar(content: Text('게시글 작성에 실패하였습니다. 에러코드: $e')));
     } finally {
       if (!mounted) return;
       setState(() => _saving = false);

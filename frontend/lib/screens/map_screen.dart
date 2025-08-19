@@ -113,10 +113,10 @@ class _MapScreenState extends State<MapScreen> {
       final east = (map['east'] as num).toDouble();
       final level = map['level'];
 
-      debugPrint(
-        '[Bounds]'
-        ' south=$south west=$west north=$north east=$east level=$level',
-      );
+      // debugPrint(
+      //   '[Bounds]'
+      //   ' south=$south west=$west north=$north east=$east level=$level',
+      // );
 
       // 중심: 저장된 값이 있으면 사용, 없으면 뷰포트 중앙
       final centerLat = _currentCenter?.lat ?? (south + north) / 2.0;
@@ -129,11 +129,11 @@ class _MapScreenState extends State<MapScreen> {
         east: east,
       );
 
-      debugPrint(
-        '[Radius]'
-        ' center=($centerLat,$centerLng)'
-        ' -> send radiusM=$radiusM',
-      );
+      // debugPrint(
+      //   '[Radius]'
+      //   ' center=($centerLat,$centerLng)'
+      //   ' -> send radiusM=$radiusM',
+      // );
 
       // 서버 조회 (필터가 있으면 해당 카테고리만)
       final items = await ReportFacade.instance.search(
@@ -143,24 +143,24 @@ class _MapScreenState extends State<MapScreen> {
         category: _filter, // null이면 전체
       );
 
-      debugPrint(
-        '[Result] count=${items.length} (filter=${_filter?.api ?? 'ALL'})',
-      );
+      // debugPrint(
+      //   '[Result] count=${items.length} (filter=${_filter?.api ?? 'ALL'})',
+      // );
 
       // 최대 50개로 제한
       final top = items.take(50).toList();
 
-      if (items.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('표시할 제보가 없습니다. (기간/범위를 조정하거나 지도를 이동해 보세요)'),
-          ),
-        );
-      } else if (items.length >= 50) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('핀을 더 보려면 지도를 확대하세요. (최대 50개 표시)')),
-        );
-      }
+      // if (items.isEmpty) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(
+      //       content: Text('표시할 제보가 없습니다. (기간/범위를 조정하거나 지도를 이동해 보세요)'),
+      //     ),
+      //   );
+      // } else if (items.length >= 50) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(content: Text('핀을 더 보려면 지도를 확대하세요. (최대 50개 표시)')),
+      //   );
+      // }
 
       // 지도 갱신: 모두 지우고 다시 그림
       await _controller.runJavaScript('clearMarkers();');
@@ -173,7 +173,7 @@ class _MapScreenState extends State<MapScreen> {
       // 필터 재적용(안전)
       await _applyFilterToWebView();
     } catch (e, st) {
-      debugPrint('[Search ERROR] $e\n$st');
+      // debugPrint('[Search ERROR] $e\n$st');
       // 네트워크/파싱 실패는 조용히 무시 (원하면 로그/스낵바 추가)
     } finally {
       _fetching = false;
@@ -386,50 +386,50 @@ class _MapScreenState extends State<MapScreen> {
           ),
 
           // 상단 우측에 현재 반경/필터를 표시 (디버그용)
-          Positioned(
-            top: 40,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Builder(
-                builder: (_) {
-                  final f = _filter?.labelKo ?? '전체';
-                  return FutureBuilder<String>(
-                    future: _controller
-                        .runJavaScriptReturningResult(
-                          'JSON.stringify(getBounds && getBounds())',
-                        )
-                        .then((v) {
-                          final m = _parseJsonMap(v.toString());
-                          if (m == null) return '반경: -';
-                          final r = _radiusMetersFromBounds(
-                            south: (m['south'] as num).toDouble(),
-                            west: (m['west'] as num).toDouble(),
-                            north: (m['north'] as num).toDouble(),
-                            east: (m['east'] as num).toDouble(),
-                          );
-                          return '반경: ${r.toStringAsFixed(0)} m';
-                        })
-                        .catchError((_) => '반경: -'),
-                    builder: (context, snap) {
-                      final radiusText = snap.data ?? '반경: -';
-                      return Text(
-                        '$radiusText · 필터: $f',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ),
+          // Positioned(
+          //   top: 40,
+          //   right: 16,
+          //   child: Container(
+          //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          //     decoration: BoxDecoration(
+          //       color: Colors.black.withOpacity(0.5),
+          //       borderRadius: BorderRadius.circular(8),
+          //     ),
+          //     child: Builder(
+          //       builder: (_) {
+          //         final f = _filter?.labelKo ?? '전체';
+          //         return FutureBuilder<String>(
+          //           future: _controller
+          //               .runJavaScriptReturningResult(
+          //                 'JSON.stringify(getBounds && getBounds())',
+          //               )
+          //               .then((v) {
+          //                 final m = _parseJsonMap(v.toString());
+          //                 if (m == null) return '반경: -';
+          //                 final r = _radiusMetersFromBounds(
+          //                   south: (m['south'] as num).toDouble(),
+          //                   west: (m['west'] as num).toDouble(),
+          //                   north: (m['north'] as num).toDouble(),
+          //                   east: (m['east'] as num).toDouble(),
+          //                 );
+          //                 return '반경: ${r.toStringAsFixed(0)} m';
+          //               })
+          //               .catchError((_) => '반경: -'),
+          //           builder: (context, snap) {
+          //             final radiusText = snap.data ?? '반경: -';
+          //             return Text(
+          //               '$radiusText · 필터: $f',
+          //               style: const TextStyle(
+          //                 color: Colors.white,
+          //                 fontSize: 12,
+          //               ),
+          //             );
+          //           },
+          //         );
+          //       },
+          //     ),
+          //   ),
+          // ),
 
           // 상단: 카테고리 "표시 필터"
           Positioned(

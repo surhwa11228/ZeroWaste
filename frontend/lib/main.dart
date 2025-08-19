@@ -44,9 +44,9 @@ class ZeroWasteApp extends StatelessWidget {
             );
           }
           if (snap.hasData) {
-            return const HomeScreen();
+            return const LoginScreen();
           }
-          return const LoginScreen();
+          return const HomeScreen();
         },
       ),
 
