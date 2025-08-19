@@ -3,7 +3,6 @@ package com.chungwoo.zerowaste.upload.service;
 import com.chungwoo.zerowaste.exception.exceptions.ImageUploadException;
 import com.chungwoo.zerowaste.upload.IImageUploader;
 import com.chungwoo.zerowaste.upload.UploadConstants;
-import com.chungwoo.zerowaste.upload.dto.ImageUploadResult;
 import com.chungwoo.zerowaste.utils.ImageUtils;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Bucket;

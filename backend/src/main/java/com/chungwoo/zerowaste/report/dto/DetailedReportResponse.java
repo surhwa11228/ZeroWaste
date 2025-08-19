@@ -4,11 +4,9 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 @Data
-@EqualsAndHashCode(callSuper = false)
 @AllArgsConstructor
 @NoArgsConstructor
-@SuperBuilder
-public class DetailedReportResponse extends ReportResponse {
-    private Long reportedAt;
-    private boolean hasAdditionalInfo;
+public class DetailedReportResponse {
+    private String imageUrl;
+    private String description;
 }
