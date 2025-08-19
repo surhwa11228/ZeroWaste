@@ -1,67 +1,68 @@
 import 'dart:convert';
-import 'package:flutter_project/utils/api_enveloper.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
 
+/// Firebase Auth ↔ 백엔드 토큰 교환/저장/리프레시 + 이메일 회원가입/구글 로그인 유지
 class AuthService {
-  final _auth = FirebaseAuth.instance;
-  final _storage = const FlutterSecureStorage();
-  final _google = GoogleSignIn(scopes: ['email']);
+  // 서버 베이스 URL (network.dart와 동일하게 맞춰 주세요)
+  static const String _base = 'http://192.168.45.98:8080/api';
 
-  //이메일 로그인
+  // SecureStorage 키 (프로젝트 기존 키 유지)
+  static const String _kAccess = 'accessToken';
+  static const String _kRefresh = 'refreshToken';
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final GoogleSignIn _google = GoogleSignIn(scopes: ['email']);
+
+  // ───────────────────────── 회원가입 / 로그인 ─────────────────────────
+
+  /// 이메일/비번 로그인 → Firebase 성공 후 서버 교환
   Future<void> signInWithEmail(String email, String password) async {
-    final userCredential = await _auth.signInWithEmailAndPassword(
+    final cred = await _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
-    final idToken = await userCredential.user?.getIdToken();
+    final idToken = await cred.user?.getIdToken();
     if (idToken == null) throw Exception('ID 토큰 없음');
-
-    await _authenticateWithServer(idToken);
+    await _authenticateWithServer(idToken); // 서버 교환 → access/refresh 저장
   }
 
+  /// 이메일 회원가입 + 인증메일 발송
+  /// ※ 가입 시점에는 서버 교환을 하지 않고, 사용자 이메일 인증 후 로그인 과정에서 교환
   Future<void> signUpWithEmail(String email, String password) async {
-    try {
-      // 선제 형식 검증(간단)
-      if (email.trim().isEmpty) {
-        throw Exception('이메일을 입력해 주세요.');
-      }
-      final emailOk = RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email.trim());
-      if (!emailOk) {
-        throw Exception('올바른 이메일 형식이 아닙니다.');
-      }
-      if (password.length < 8) {
-        throw Exception('비밀번호는 8자 이상이어야 합니다.');
-      }
+    // 간단한 선제 검증
+    final e = email.trim();
+    if (e.isEmpty) throw Exception('이메일을 입력해 주세요.');
+    final emailOk = RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(e);
+    if (!emailOk) throw Exception('올바른 이메일 형식이 아닙니다.');
+    if (password.length < 8) {
+      throw Exception('비밀번호는 8자 이상이어야 합니다.');
+    }
 
-      // Firebase 계정 생성
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: e,
         password: password,
       );
-
-      final user = userCredential.user;
+      final user = cred.user;
       if (user == null) {
         throw Exception('회원가입에 실패했습니다. 다시 시도해 주세요.');
       }
 
-      // 인증 메일 발송 (인앱 딥링크 미사용; 브라우저로 열림)
+      // 인증 메일 발송(간단 구성)
       await user.sendEmailVerification(
         ActionCodeSettings(
           url:
-              'https://zerowaste-ccae3.firebaseapp.com/__/auth/action?mode=action&oobCode=code/verified', // 랜딩 페이지(공지용이면 충분)
-          handleCodeInApp: false, // 딥링크 미사용 (간단/안정)
+              'https://zerowaste-ccae3.firebaseapp.com/__/auth/action?mode=action&oobCode=code/verified',
+          handleCodeInApp: false,
         ),
       );
 
-      // ✅ 여기서 서버 인증 호출하지 않음.
-      //    화면 쪽에서 /verify-email 로 라우팅하여
-      //    "다시 확인" 버튼에서 emailVerified 체크 후 로그인 진행.
+      // 화면에서 "인증 확인" 후 로그인 → 서버 교환 진행
     } on FirebaseAuthException catch (e) {
-      // Firebase 에러코드 → 사용자 친화 메시지
       switch (e.code) {
         case 'email-already-in-use':
           throw Exception('이미 사용 중인 이메일입니다.');
@@ -69,20 +70,17 @@ class AuthService {
           throw Exception('올바르지 않은 이메일 주소입니다.');
         case 'operation-not-allowed':
           throw Exception('현재 이메일/비밀번호 가입이 비활성화되어 있습니다.');
-        case 'weak-password': // Firebase 기본 기준(6자)이나, 우리는 선제 검증으로 8자 요구
+        case 'weak-password':
           throw Exception('비밀번호가 안전하지 않습니다. 더 복잡하게 설정해 주세요.');
         case 'network-request-failed':
           throw Exception('네트워크 오류가 발생했습니다. 연결을 확인해 주세요.');
         default:
           throw Exception('회원가입에 실패했습니다. (${e.code})');
       }
-    } catch (e) {
-      // 기타 예외
-      throw Exception(e.toString());
     }
   }
 
-  //Google 로그인
+  /// 구글 로그인 → Firebase 성공 후 서버 교환
   Future<void> signInWithGoogle() async {
     final googleUser = await _google.signIn();
     if (googleUser == null) throw Exception('Google 로그인 취소됨');
@@ -92,80 +90,113 @@ class AuthService {
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
-
-    final userCredential = await _auth.signInWithCredential(credential);
-    final idToken = await userCredential.user?.getIdToken();
+    final userCred = await _auth.signInWithCredential(credential);
+    final idToken = await userCred.user?.getIdToken();
     if (idToken == null) throw Exception('ID 토큰 없음');
+
+    await _authenticateWithServer(idToken); // 서버 교환 → access/refresh 저장
+  }
+
+  // ───────────────────────── 서버 토큰 교환/저장 ─────────────────────────
+
+  /// Firebase ID 토큰을 서버로 보내 access/refresh 토큰을 교환/저장
+  Future<void> _authenticateWithServer(String idToken) async {
+    final resp = await http.post(
+      Uri.parse('$_base/auth/login'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    );
+
+    if (resp.statusCode != 200) {
+      throw Exception('서버 로그인 실패: ${resp.statusCode}');
+    }
+
+    final decoded = _decode(resp.body);
+    // ApiResponse 래퍼 대응: { "data": { accessToken, refreshToken, ... } }
+    final data = decoded['data'] ?? decoded;
+    final access = (data['accessToken'] ?? '').toString();
+    final refresh = (data['refreshToken'] ?? '').toString();
+    if (access.isEmpty || refresh.isEmpty) {
+      throw Exception('토큰 발급 실패: 응답에 토큰이 없습니다.');
+    }
+    await _storage.write(key: _kAccess, value: access);
+    await _storage.write(key: _kRefresh, value: refresh);
+  }
+
+  /// (부트스트랩용) 이미 Firebase 로그인된 상태에서 서버 토큰 재교환
+  Future<void> exchangeAndStoreTokens() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('Firebase 로그인 상태가 아닙니다.');
+    }
+    final String? idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      throw StateError('ID 토큰을 가져오지 못했습니다.');
+    }
 
     await _authenticateWithServer(idToken);
   }
 
-  //서버에 ID 토큰 전송 → accessToken / refreshToken 저장
-  Future<void> _authenticateWithServer(String idToken) async {
-    final response = await http.post(
-      Uri.parse('http://192.168.45.98:8080/api/auth/login'),
-      headers: {
-        'Authorization': 'Bearer $idToken',
-        'Content-Type': 'application/json',
-      },
-    );
+  // ───────────────────────── 자동 리프레시 ─────────────────────────
 
-    if (response.statusCode == 200) {
-      final res = jsonDecode(response.body);
-      final data = res['data'];
-
-      final accessToken = data['accessToken'];
-      final refreshToken = data['refreshToken'];
-
-      await _storage.write(key: 'accessToken', value: accessToken);
-      await _storage.write(key: 'refreshToken', value: refreshToken);
-    } else {
-      throw Exception('서버 로그인 실패: ${response.statusCode}');
-    }
-  }
-
-  //저장된 accessToken 가져오기
-  Future<String?> getAccessToken() async {
-    // Fluttertoast.showToast(
-    //   msg: "로그인이 필요합니다. ${await _storage.read(key: 'accessToken')}",
-    //   toastLength: Toast.LENGTH_SHORT,
-    //   gravity: ToastGravity.BOTTOM,
-    // );
-    return await _storage.read(key: 'accessToken');
-  }
-
+  /// 저장된 refreshToken으로 새 accessToken 발급 (성공 시 저장/반환)
+  /// 서버가 refreshToken도 갱신해서 줄 수 있으니, 있으면 함께 교체
   Future<String?> refreshAccessToken() async {
-    final refreshToken = await _storage.read(key: 'refreshToken');
-    if (refreshToken == null) return null;
+    final refresh = await _storage.read(key: _kRefresh);
+    if (refresh == null || refresh.isEmpty) return null;
 
-    final response = await http.post(
-      Uri.parse('http://192.168.45.98:8080/api/auth/refresh'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'refreshToken': refreshToken}),
+    final resp = await http.post(
+      Uri.parse('$_base/auth/refresh'),
+      headers: const {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({'refreshToken': refresh}),
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final newAccessToken = data['accessToken'] as String?;
-      final newRefreshToken = data['refreshToken'] as String? ?? refreshToken;
+    if (resp.statusCode != 200) return null;
 
-      if (newAccessToken != null) {
-        await _storage.write(key: 'accessToken', value: newAccessToken);
-      }
-      await _storage.write(key: 'refreshToken', value: newRefreshToken);
-      return newAccessToken;
-    } else {
-      return null; // 갱신 실패
+    final decoded = _decode(resp.body);
+    final data = decoded['data'] ?? decoded;
+    final newAccess = (data['accessToken'] ?? '').toString();
+    final newRefresh = (data['refreshToken'] ?? '').toString();
+
+    if (newAccess.isEmpty) return null;
+
+    await _storage.write(key: _kAccess, value: newAccess);
+    if (newRefresh.isNotEmpty) {
+      await _storage.write(key: _kRefresh, value: newRefresh);
     }
+    return newAccess;
   }
 
-  //로그아웃
+  // ───────────────────────── 세션/유틸 ─────────────────────────
+
+  Future<String?> getAccessToken() => _storage.read(key: _kAccess);
+  Future<String?> getRefreshToken() => _storage.read(key: _kRefresh);
+
+  Future<void> clearTokens() async {
+    await _storage.delete(key: _kAccess);
+    await _storage.delete(key: _kRefresh);
+  }
+
   Future<void> signOut() async {
     await _auth.signOut();
     await _google.signOut();
     await _storage.deleteAll();
   }
 
-  //현재 Firebase 유저 (null일 수 있음)
   User? get currentUser => _auth.currentUser;
+
+  Map<String, dynamic> _decode(String body) {
+    try {
+      final obj = jsonDecode(body);
+      if (obj is Map<String, dynamic>) return obj;
+      if (obj is Map) return Map<String, dynamic>.from(obj);
+    } catch (_) {}
+    return <String, dynamic>{};
+  }
 }

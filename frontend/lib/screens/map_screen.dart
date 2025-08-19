@@ -147,8 +147,8 @@ class _MapScreenState extends State<MapScreen> {
       //   '[Result] count=${items.length} (filter=${_filter?.api ?? 'ALL'})',
       // );
 
-      // 최대 50개로 제한
-      final top = items.take(50).toList();
+      // 최대 n개로 제한
+      final top = items.take(80).toList();
 
       // if (items.isEmpty) {
       //   ScaffoldMessenger.of(context).showSnackBar(
