@@ -72,7 +72,6 @@ public class ReportController {
             @RequestParam(required = false) Long startAfter,
             @AuthenticationPrincipal AuthUserDetails user) {
 
-
         List<ReportResponse> myReports = reportService.searchMyReports(startAfter, user);
 
         return ResponseEntity.status(HttpStatus.OK)
