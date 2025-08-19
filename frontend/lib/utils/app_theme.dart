@@ -10,7 +10,7 @@ class AppTheme {
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: AppColors.green,
+        backgroundColor: Color.fromRGBO(56, 142, 60, 1),
         foregroundColor: Colors.white,
       ),
       textTheme: base.textTheme.copyWith(

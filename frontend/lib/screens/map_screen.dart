@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:math' show cos, sin, asin, sqrt, pi;
+import 'dart:math' show cos, sin, asin, sqrt, pi, max;
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -21,11 +21,26 @@ class _MapScreenState extends State<MapScreen> {
   late final WebViewController _controller;
 
   bool _mapReady = false; // map.html에서 READY 신호 수신 여부
-  LatLng? _currentCenter; // JS → "lat,lng" 수신해 반영
-  WasteCategory? _filter; // 상단 카테고리 '표시 필터'
 
-  // 화면 변경 → 서버 조회 디바운스
-  Timer? _boundsDebounce;
+  /// 지도에서 가장 최근 수신한 중심(센터)
+  LatLng? _currentCenter;
+
+  /// 마지막으로 서버에 실제로 질의(fetch)한 중심(센터)
+  LatLng? _lastFetchedCenter;
+
+  /// 최근 뷰포트 반경(대각선/2 기반, meter)
+  double? _latestViewportRadiusM;
+
+  /// 상단 '현 지도에서 검색' 버튼 표시 여부
+  bool _showSearchHere = false;
+
+  /// CENTER/BOUNDS 이벤트 디바운스
+  Timer? _centerDebounce;
+
+  /// 카테고리 '표시 필터'
+  WasteCategory? _filter;
+
+  /// 내부 fetch 진행 중 보호
   bool _fetching = false;
 
   static const Map<WasteCategory, String> _labels = {
@@ -46,25 +61,48 @@ class _MapScreenState extends State<MapScreen> {
         onMessageReceived: (JavaScriptMessage msg) async {
           final s = msg.message.trim();
 
-          // map.html에서 초기화 완료 시 'READY'를 보내도록 되어 있음
+          // map.html → 초기화 완료
           if (s == 'READY') {
             _mapReady = true;
-            _scheduleFetchPins();
+            // 초기 진입: GPS 기준으로 지도 이동 + 1회 자동 새로고침
+            unawaited(_bootstrapInitialGpsFetch());
             return;
           }
 
+          // BOUNDS:south,west,north,east,level
           if (s.startsWith('BOUNDS:')) {
-            _scheduleFetchPins();
+            final parts = s.substring(7).split(',');
+            if (parts.length >= 4) {
+              final south = double.tryParse(parts[0]);
+              final west = double.tryParse(parts[1]);
+              final north = double.tryParse(parts[2]);
+              final east = double.tryParse(parts[3]);
+              if (south != null &&
+                  west != null &&
+                  north != null &&
+                  east != null) {
+                // 최신 반경 저장
+                _latestViewportRadiusM = _radiusMetersFromBounds(
+                  south: south,
+                  west: west,
+                  north: north,
+                  east: east,
+                );
+                _scheduleCenterCheck(); // 버튼 노출 여부 재평가
+              }
+            }
             return;
           }
 
-          // "lat,lng" 형식 수신하여 중심 저장
-          final parts = s.split(',');
+          // CENTER:lat,lng  혹은 "lat,lng"
+          final centerStr = s.startsWith('CENTER:') ? s.substring(7) : s;
+          final parts = centerStr.split(',');
           if (parts.length >= 2) {
             final lat = double.tryParse(parts[0]);
             final lng = double.tryParse(parts[1]);
             if (lat != null && lng != null) {
-              setState(() => _currentCenter = LatLng(lat, lng));
+              _currentCenter = LatLng(lat, lng);
+              _scheduleCenterCheck(); // 버튼 노출 여부 재평가
             }
           }
         },
@@ -72,10 +110,9 @@ class _MapScreenState extends State<MapScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
-            // // 페이지 로딩 완료 후, 혹시 READY 신호보다 먼저 JS 호출이 필요하면 여기서도 보호
-            // await Future<void>.delayed(const Duration(milliseconds: 50));
+            // 페이지 로딩 완료 후 READY 이전이라면 대기
             if (!_mapReady) {
-              _scheduleFetchPins();
+              // READY 이후 _bootstrapInitialGpsFetch()가 실행됨
             }
           },
         ),
@@ -83,22 +120,123 @@ class _MapScreenState extends State<MapScreen> {
       ..loadFlutterAsset('assets/map/map.html');
   }
 
-  // ───────────────────────── 자동 핀 로딩 ─────────────────────────
+  // ───────────────────────── '현 지도에서 검색' 버튼 로직 ─────────────────────────
 
-  void _scheduleFetchPins() {
-    _boundsDebounce?.cancel();
-    _boundsDebounce = Timer(
-      const Duration(milliseconds: 350),
-      _fetchPinsForViewport,
+  void _scheduleCenterCheck() {
+    _centerDebounce?.cancel();
+    _centerDebounce = Timer(
+      const Duration(milliseconds: 180),
+      _updateSearchHereState,
     );
   }
 
-  Future<void> _fetchPinsForViewport() async {
+  void _updateSearchHereState() {
+    // 아직 한 번도 fetch하지 않았다면 버튼은 숨김(초기/GPS/카테고리에서 자동 fetch가 들어옴)
+    if (_currentCenter == null || _lastFetchedCenter == null) {
+      if (_showSearchHere) {
+        setState(() => _showSearchHere = false);
+      }
+      return;
+    }
+
+    final r = _latestViewportRadiusM ?? 0.0;
+    // 줌/화면 크기에 따라 달라지는 동적 임계치 (최소 120m, 또는 화면 반경의 25%)
+    final threshold = max(120.0, 0.25 * r);
+
+    final d = _haversineMeters(
+      _currentCenter!.lat,
+      _currentCenter!.lng,
+      _lastFetchedCenter!.lat,
+      _lastFetchedCenter!.lng,
+    );
+
+    final shouldShow = d >= threshold;
+    if (shouldShow != _showSearchHere) {
+      setState(() => _showSearchHere = shouldShow);
+    }
+  }
+
+  Future<void> _onSearchHerePressed() async {
+    if (_currentCenter == null) return;
+    await _reloadPins(center: _currentCenter!, category: _filter);
+    setState(() {
+      _lastFetchedCenter = _currentCenter;
+      _showSearchHere = false;
+    });
+  }
+
+  // ───────────────────────── 자동 새로고침(초기/GPS/카테고리) ─────────────────────────
+
+  /// 앱 첫 진입: GPS 기준 지도 이동 후 1회 새로고침
+  Future<void> _bootstrapInitialGpsFetch() async {
+    final gps = await _tryGetGpsLatLng();
+    if (gps != null) {
+      await _moveMapTo(gps);
+      await _reloadPins(center: gps, category: _filter);
+      setState(() {
+        _lastFetchedCenter = gps;
+        _showSearchHere = false;
+      });
+      return;
+    }
+
+    // 권한 거부/실패 시: 현재 뷰포트 중심 기준 1회 새로고침
+    final fallback = await _getViewportCenterViaJs();
+    if (fallback != null) {
+      await _reloadPins(center: fallback, category: _filter);
+      setState(() {
+        _lastFetchedCenter = fallback;
+        _showSearchHere = false;
+      });
+    }
+  }
+
+  /// 좌하단 '현위치' 버튼: GPS로 지도 이동 + 1회 자동 새로고침
+  Future<void> _moveToMyLocation() async {
+    final gps = await _tryGetGpsLatLng();
+    if (gps == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('위치 권한이 필요합니다. 설정에서 허용해주세요.')),
+        );
+      }
+      return;
+    }
+
+    await _moveMapTo(gps);
+    await _reloadPins(center: gps, category: _filter);
+    setState(() {
+      _lastFetchedCenter = gps;
+      _showSearchHere = false;
+    });
+  }
+
+  /// 카테고리 변경: 현재 보이는 지도 중심(있으면 그 값, 없으면 마지막 검색 중심) 기준 자동 새로고침
+  Future<void> _onCategoryChanged(WasteCategory? next) async {
+    setState(() => _filter = next);
+
+    final center =
+        _currentCenter ?? _lastFetchedCenter ?? await _getViewportCenterViaJs();
+    if (center == null) return;
+
+    await _reloadPins(center: center, category: _filter);
+    setState(() {
+      _lastFetchedCenter = center;
+      _showSearchHere = false;
+    });
+  }
+
+  // ───────────────────────── 검색/표시 핵심 ─────────────────────────
+
+  /// 현재 뷰포트 bounds를 JS에서 읽고, radius(m)를 계산하여 서버 질의 후 WebView 마커 갱신
+  Future<void> _reloadPins({
+    required LatLng center,
+    WasteCategory? category,
+  }) async {
     if (!_mapReady || _fetching) return;
     _fetching = true;
-
     try {
-      // JS에서 현재 뷰포트 경계 가져오기
+      // JS에서 현재 뷰포트 경계
       final boundsJson = await _controller.runJavaScriptReturningResult(
         'JSON.stringify(getBounds && getBounds())',
       );
@@ -111,16 +249,6 @@ class _MapScreenState extends State<MapScreen> {
       final west = (map['west'] as num).toDouble();
       final north = (map['north'] as num).toDouble();
       final east = (map['east'] as num).toDouble();
-      final level = map['level'];
-
-      // debugPrint(
-      //   '[Bounds]'
-      //   ' south=$south west=$west north=$north east=$east level=$level',
-      // );
-
-      // 중심: 저장된 값이 있으면 사용, 없으면 뷰포트 중앙
-      final centerLat = _currentCenter?.lat ?? (south + north) / 2.0;
-      final centerLng = _currentCenter?.lng ?? (west + east) / 2.0;
 
       final radiusM = _radiusMetersFromBounds(
         south: south,
@@ -128,41 +256,20 @@ class _MapScreenState extends State<MapScreen> {
         north: north,
         east: east,
       );
+      _latestViewportRadiusM = radiusM; // 최신 보관
 
-      // debugPrint(
-      //   '[Radius]'
-      //   ' center=($centerLat,$centerLng)'
-      //   ' -> send radiusM=$radiusM',
-      // );
-
-      // 서버 조회 (필터가 있으면 해당 카테고리만)
+      // 서버 조회 (필터 있으면 해당 카테고리만)
       final items = await ReportFacade.instance.search(
-        centerLat: centerLat,
-        centerLng: centerLng,
+        centerLat: center.lat,
+        centerLng: center.lng,
         radius: radiusM,
-        category: _filter, // null이면 전체
+        category: category, // null이면 전체
       );
 
-      // debugPrint(
-      //   '[Result] count=${items.length} (filter=${_filter?.api ?? 'ALL'})',
-      // );
-
-      // 최대 n개로 제한
+      // 최대 80개로 제한
       final top = items.take(80).toList();
 
-      // if (items.isEmpty) {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     const SnackBar(
-      //       content: Text('표시할 제보가 없습니다. (기간/범위를 조정하거나 지도를 이동해 보세요)'),
-      //     ),
-      //   );
-      // } else if (items.length >= 50) {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     const SnackBar(content: Text('핀을 더 보려면 지도를 확대하세요. (최대 50개 표시)')),
-      //   );
-      // }
-
-      // 지도 갱신: 모두 지우고 다시 그림
+      // 지도 마커 갱신
       await _controller.runJavaScript('clearMarkers();');
       for (final ReportSummary it in top) {
         final cat = it.wasteCategory.api; // enum → API 문자열
@@ -172,12 +279,57 @@ class _MapScreenState extends State<MapScreen> {
 
       // 필터 재적용(안전)
       await _applyFilterToWebView();
-    } catch (e, st) {
-      // debugPrint('[Search ERROR] $e\n$st');
-      // 네트워크/파싱 실패는 조용히 무시 (원하면 로그/스낵바 추가)
+    } catch (_) {
+      // 네트워크/파싱 실패는 조용히 무시 (필요 시 로깅)
     } finally {
       _fetching = false;
     }
+  }
+
+  // ───────────────────────── JS/유틸 ─────────────────────────
+
+  Future<void> _moveMapTo(LatLng latLng) async {
+    if (!_mapReady) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    await _controller.runJavaScript('setCenter(${latLng.lat}, ${latLng.lng});');
+  }
+
+  Future<LatLng?> _getViewportCenterViaJs() async {
+    try {
+      final boundsJson = await _controller.runJavaScriptReturningResult(
+        'JSON.stringify(getBounds && getBounds())',
+      );
+      if (boundsJson == 'null') return null;
+
+      final map = _parseJsonMap(boundsJson.toString());
+      if (map == null) return null;
+
+      final south = (map['south'] as num).toDouble();
+      final west = (map['west'] as num).toDouble();
+      final north = (map['north'] as num).toDouble();
+      final east = (map['east'] as num).toDouble();
+
+      return LatLng((south + north) / 2.0, (west + east) / 2.0);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<LatLng?> _tryGetGpsLatLng() async {
+    LocationPermission perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      return null;
+    }
+
+    final pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.best,
+    );
+    return LatLng(pos.latitude, pos.longitude);
   }
 
   // WebView에서 온 JSON 문자열을 안전 파싱
@@ -212,9 +364,13 @@ class _MapScreenState extends State<MapScreen> {
     return R * c;
   }
 
+  // 하버사인 (m)
+  double _haversineMeters(double lat1, double lon1, double lat2, double lon2) {
+    return _haversineKm(lat1, lon1, lat2, lon2) * 1000.0;
+  }
+
   /// 뷰포트에서 보낼 반경(m) 계산:
-  /// - 기존: center→north 한쪽만 보던 것을
-  /// - 개선: center→NE(대각선 반쪽) 거리 사용 (화면 반경에 더 근접)
+  /// - center→NE(대각선 반쪽) 거리 사용 (화면 반경에 근접)
   /// - 안전 캡: 50m ~ 5000m
   double _radiusMetersFromBounds({
     required double south,
@@ -235,36 +391,6 @@ class _MapScreenState extends State<MapScreen> {
     return clamped.toDouble();
   }
 
-  Future<void> _moveToMyLocation() async {
-    final perm = await Geolocator.checkPermission();
-    var ensured = perm;
-    if (perm == LocationPermission.denied) {
-      ensured = await Geolocator.requestPermission();
-    }
-    if (ensured == LocationPermission.denied ||
-        ensured == LocationPermission.deniedForever) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('위치 권한이 필요합니다. 설정에서 허용해주세요.')),
-        );
-      }
-      return;
-    }
-
-    final pos = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.best,
-    );
-
-    if (!_mapReady) {
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-    }
-
-    await _controller.runJavaScript(
-      'setCenter(${pos.latitude}, ${pos.longitude});',
-    );
-  }
-
-  // 제보하기: 현재 지도 중심만 넘기고, 카테고리 선택은 제보 화면에서
   Future<void> _onReport() async {
     if (_currentCenter == null) {
       ScaffoldMessenger.of(
@@ -294,7 +420,6 @@ class _MapScreenState extends State<MapScreen> {
 
       // 필터 때문에 방금 추가한 마커가 숨겨지지 않도록, 동일 카테고리로 필터하거나 전체로 풀기
       if (_filter != null && _filter!.api != categoryApi) {
-        // 방금 추가된 카테고리만 보이게 바꿈
         setState(() => _filter = WasteCategoryCodec.fromApi(categoryApi));
         await _applyFilterToWebView();
       }
@@ -316,9 +441,9 @@ class _MapScreenState extends State<MapScreen> {
     final bool selected = _filter == value;
     return GestureDetector(
       onTap: () async {
-        setState(() => _filter = selected ? null : value);
-        await _applyFilterToWebView();
-        _scheduleFetchPins();
+        // 선택/해제
+        final next = selected ? null : value;
+        await _onCategoryChanged(next);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -348,12 +473,14 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
-    _boundsDebounce?.cancel();
+    _centerDebounce?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('지도'),
@@ -364,7 +491,7 @@ class _MapScreenState extends State<MapScreen> {
             tooltip: '새로고침',
             onPressed: () async {
               await _controller.reload();
-              // 새로고침 후 READY 수신 시 _applyFilterToWebView()가 불림
+              // 새로고침 후 READY 수신 → _bootstrapInitialGpsFetch() 수행
             },
           ),
         ],
@@ -385,55 +512,37 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // 상단 우측에 현재 반경/필터를 표시 (디버그용)
-          // Positioned(
-          //   top: 40,
-          //   right: 16,
-          //   child: Container(
-          //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          //     decoration: BoxDecoration(
-          //       color: Colors.black.withOpacity(0.5),
-          //       borderRadius: BorderRadius.circular(8),
-          //     ),
-          //     child: Builder(
-          //       builder: (_) {
-          //         final f = _filter?.labelKo ?? '전체';
-          //         return FutureBuilder<String>(
-          //           future: _controller
-          //               .runJavaScriptReturningResult(
-          //                 'JSON.stringify(getBounds && getBounds())',
-          //               )
-          //               .then((v) {
-          //                 final m = _parseJsonMap(v.toString());
-          //                 if (m == null) return '반경: -';
-          //                 final r = _radiusMetersFromBounds(
-          //                   south: (m['south'] as num).toDouble(),
-          //                   west: (m['west'] as num).toDouble(),
-          //                   north: (m['north'] as num).toDouble(),
-          //                   east: (m['east'] as num).toDouble(),
-          //                 );
-          //                 return '반경: ${r.toStringAsFixed(0)} m';
-          //               })
-          //               .catchError((_) => '반경: -'),
-          //           builder: (context, snap) {
-          //             final radiusText = snap.data ?? '반경: -';
-          //             return Text(
-          //               '$radiusText · 필터: $f',
-          //               style: const TextStyle(
-          //                 color: Colors.white,
-          //                 fontSize: 12,
-          //               ),
-          //             );
-          //           },
-          //         );
-          //       },
-          //     ),
-          //   ),
-          // ),
+          // 상단 중앙: '현 지도에서 검색' 버튼
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: MediaQuery.of(context).padding.bottom + 72, // 제보 버튼 위 여백
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: !_showSearchHere
+                  ? const SizedBox.shrink()
+                  : Center(
+                      child: ElevatedButton.icon(
+                        key: const ValueKey('search-here-bottom'),
+                        onPressed: _onSearchHerePressed,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('현 지도에서 검색'),
+                        style: ElevatedButton.styleFrom(
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          elevation: 3,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
 
           // 상단: 카테고리 "표시 필터"
           Positioned(
-            top: 12,
+            top: topPadding - 20,
             left: 0,
             right: 0,
             child: Center(
