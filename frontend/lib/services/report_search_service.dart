@@ -56,8 +56,8 @@ class ReportSearchService {
 
     try {
       final res = await _dio.get(
-        _my,
-        queryParameters: qp.isNotEmpty ? null : qp,
+        _base,
+        queryParameters: qp.isNotEmpty ? qp : null,
         cancelToken: cancelToekn,
       );
 

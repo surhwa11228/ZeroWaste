@@ -1,8 +1,14 @@
+import 'dart:convert';
+import 'dart:async';
+import 'dart:math' show cos, sin, asin, sqrt, pi;
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../utils/waste_category_enum.dart'; // WasteCategory, WasteCategoryCodec(.api)
+import '../services/report_facade.dart';
+import '../models/report_models.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -13,9 +19,14 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   late final WebViewController _controller;
+
   bool _mapReady = false; // map.html에서 READY 신호 수신 여부
   LatLng? _currentCenter; // JS → "lat,lng" 수신해 반영
   WasteCategory? _filter; // 상단 카테고리 '표시 필터'
+
+  // 화면 변경 → 서버 조회 디바운스
+  Timer? _boundsDebounce;
+  bool _fetching = false;
 
   static const Map<WasteCategory, String> _labels = {
     WasteCategory.cigaretteButt: '담배꽁초',
@@ -37,15 +48,13 @@ class _MapScreenState extends State<MapScreen> {
 
           // map.html에서 초기화 완료 시 'READY'를 보내도록 되어 있음
           if (s == 'READY') {
-            setState(() => _mapReady = true);
-            // 초기 필터 상태 재적용 (있다면)
-            await _applyFilterToWebView();
+            _mapReady = true;
+            _scheduleFetchPins();
             return;
           }
 
-          // (선택) 디버그 로그: ADDED:lat,lng,category,count=n
-          if (s.startsWith('ADDED:')) {
-            // print('[MAP JS] $s');
+          if (s.startsWith('BOUNDS:')) {
+            _scheduleFetchPins();
             return;
           }
 
@@ -63,15 +72,167 @@ class _MapScreenState extends State<MapScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
-            // 페이지 로딩 완료 후, 혹시 READY 신호보다 먼저 JS 호출이 필요하면 여기서도 보호
-            await Future<void>.delayed(const Duration(milliseconds: 50));
+            // // 페이지 로딩 완료 후, 혹시 READY 신호보다 먼저 JS 호출이 필요하면 여기서도 보호
+            // await Future<void>.delayed(const Duration(milliseconds: 50));
             if (!_mapReady) {
-              // map.html이 tilesloaded에서 emitCenter()를 쏘므로 대기
+              _scheduleFetchPins();
             }
           },
         ),
       )
       ..loadFlutterAsset('assets/map/map.html');
+  }
+
+  // ───────────────────────── 자동 핀 로딩 ─────────────────────────
+
+  void _scheduleFetchPins() {
+    _boundsDebounce?.cancel();
+    _boundsDebounce = Timer(
+      const Duration(milliseconds: 350),
+      _fetchPinsForViewport,
+    );
+  }
+
+  Future<void> _fetchPinsForViewport() async {
+    if (!_mapReady || _fetching) return;
+    _fetching = true;
+
+    try {
+      // JS에서 현재 뷰포트 경계 가져오기
+      final boundsJson = await _controller.runJavaScriptReturningResult(
+        'JSON.stringify(getBounds && getBounds())',
+      );
+      if (boundsJson == 'null') return;
+
+      final map = _parseJsonMap(boundsJson.toString());
+      if (map == null) return;
+
+      final south = (map['south'] as num).toDouble();
+      final west = (map['west'] as num).toDouble();
+      final north = (map['north'] as num).toDouble();
+      final east = (map['east'] as num).toDouble();
+      final level = map['level'];
+
+      debugPrint(
+        '[Bounds]'
+        ' south=$south west=$west north=$north east=$east level=$level',
+      );
+
+      // 중심: 저장된 값이 있으면 사용, 없으면 뷰포트 중앙
+      final centerLat = _currentCenter?.lat ?? (south + north) / 2.0;
+      final centerLng = _currentCenter?.lng ?? (west + east) / 2.0;
+
+      final radiusM = _radiusMetersFromBounds(
+        south: south,
+        west: west,
+        north: north,
+        east: east,
+      );
+
+      debugPrint(
+        '[Radius]'
+        ' center=($centerLat,$centerLng)'
+        ' -> send radiusM=$radiusM',
+      );
+
+      // 서버 조회 (필터가 있으면 해당 카테고리만)
+      final items = await ReportFacade.instance.search(
+        centerLat: centerLat,
+        centerLng: centerLng,
+        radius: radiusM,
+        category: _filter, // null이면 전체
+      );
+
+      debugPrint(
+        '[Result] count=${items.length} (filter=${_filter?.api ?? 'ALL'})',
+      );
+
+      // 최대 50개로 제한
+      final top = items.take(50).toList();
+
+      if (items.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('표시할 제보가 없습니다. (기간/범위를 조정하거나 지도를 이동해 보세요)'),
+          ),
+        );
+      } else if (items.length >= 50) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('핀을 더 보려면 지도를 확대하세요. (최대 50개 표시)')),
+        );
+      }
+
+      // 지도 갱신: 모두 지우고 다시 그림
+      await _controller.runJavaScript('clearMarkers();');
+      for (final ReportSummary it in top) {
+        final cat = it.wasteCategory.api; // enum → API 문자열
+        final js = "addMarker(${it.latitude}, ${it.longitude}, '$cat');";
+        await _controller.runJavaScript(js);
+      }
+
+      // 필터 재적용(안전)
+      await _applyFilterToWebView();
+    } catch (e, st) {
+      debugPrint('[Search ERROR] $e\n$st');
+      // 네트워크/파싱 실패는 조용히 무시 (원하면 로그/스낵바 추가)
+    } finally {
+      _fetching = false;
+    }
+  }
+
+  // WebView에서 온 JSON 문자열을 안전 파싱
+  Map<String, dynamic>? _parseJsonMap(String raw) {
+    try {
+      String s = raw.trim();
+      if (s.startsWith('"') && s.endsWith('"')) {
+        // JS → Dart로 올 때 큰따옴표로 한번 감싸져 올 수 있음
+        s = s.substring(1, s.length - 1).replaceAll(r'\"', '"');
+      }
+      final decoded = jsonDecode(s);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) return decoded.cast<String, dynamic>();
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // 하버사인 (km)
+  double _haversineKm(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371.0; // km
+    final dLat = (lat2 - lat1) * pi / 180;
+    final dLon = (lon2 - lon1) * pi / 180;
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * pi / 180) *
+            cos(lat2 * pi / 180) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+    final c = 2 * asin(sqrt(a));
+    return R * c;
+  }
+
+  /// 뷰포트에서 보낼 반경(m) 계산:
+  /// - 기존: center→north 한쪽만 보던 것을
+  /// - 개선: center→NE(대각선 반쪽) 거리 사용 (화면 반경에 더 근접)
+  /// - 안전 캡: 50m ~ 5000m
+  double _radiusMetersFromBounds({
+    required double south,
+    required double west,
+    required double north,
+    required double east,
+  }) {
+    final centerLat = (south + north) / 2.0;
+    final centerLng = (west + east) / 2.0;
+
+    // center → NE 코너까지 (뷰포트 대각선의 반)
+    final diagHalfKm = _haversineKm(centerLat, centerLng, north, east);
+    // 일부 SDK에서 level 낮을 때 bounds가 커질 수 있으니 안전계수 0.9
+    final meters = (diagHalfKm * 1000.0 * 0.9);
+
+    // 서버 보호 및 과소/과대 질의 방지
+    final clamped = meters.clamp(50.0, 5000.0);
+    return clamped.toDouble();
   }
 
   Future<void> _moveToMyLocation() async {
@@ -140,6 +301,16 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  Future<void> _applyFilterToWebView() async {
+    if (!_mapReady) return;
+    final filter = _filter?.api; // null이면 전체 표시
+    if (filter == null) {
+      await _controller.runJavaScript("filterByCategory(null);");
+    } else {
+      await _controller.runJavaScript("filterByCategory('$filter');");
+    }
+  }
+
   // 상단 필터 칩: 같은 걸 다시 누르면 해제 (null=전체 표시)
   Widget _filterChip(String label, WasteCategory value) {
     final bool selected = _filter == value;
@@ -147,6 +318,7 @@ class _MapScreenState extends State<MapScreen> {
       onTap: () async {
         setState(() => _filter = selected ? null : value);
         await _applyFilterToWebView();
+        _scheduleFetchPins();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -174,14 +346,10 @@ class _MapScreenState extends State<MapScreen> {
   Widget _categoryChip(String label, WasteCategory value) =>
       _filterChip(label, value);
 
-  Future<void> _applyFilterToWebView() async {
-    if (!_mapReady) return;
-    final filter = _filter?.api; // null이면 전체 표시
-    if (filter == null) {
-      await _controller.runJavaScript("filterByCategory(null);");
-    } else {
-      await _controller.runJavaScript("filterByCategory('$filter');");
-    }
+  @override
+  void dispose() {
+    _boundsDebounce?.cancel();
+    super.dispose();
   }
 
   @override
@@ -214,6 +382,52 @@ class _MapScreenState extends State<MapScreen> {
             child: Align(
               alignment: Alignment.center,
               child: Icon(Icons.location_on, size: 48, color: Colors.red),
+            ),
+          ),
+
+          // 상단 우측에 현재 반경/필터를 표시 (디버그용)
+          Positioned(
+            top: 40,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Builder(
+                builder: (_) {
+                  final f = _filter?.labelKo ?? '전체';
+                  return FutureBuilder<String>(
+                    future: _controller
+                        .runJavaScriptReturningResult(
+                          'JSON.stringify(getBounds && getBounds())',
+                        )
+                        .then((v) {
+                          final m = _parseJsonMap(v.toString());
+                          if (m == null) return '반경: -';
+                          final r = _radiusMetersFromBounds(
+                            south: (m['south'] as num).toDouble(),
+                            west: (m['west'] as num).toDouble(),
+                            north: (m['north'] as num).toDouble(),
+                            east: (m['east'] as num).toDouble(),
+                          );
+                          return '반경: ${r.toStringAsFixed(0)} m';
+                        })
+                        .catchError((_) => '반경: -'),
+                    builder: (context, snap) {
+                      final radiusText = snap.data ?? '반경: -';
+                      return Text(
+                        '$radiusText · 필터: $f',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
 

@@ -46,16 +46,21 @@
       const container = document.getElementById('map');
       map = new kakao.maps.Map(container, {
         center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 시청
-        level: 2  //Default: 4
+        level: 3  //Default: 4
       });
 
       // 지도 이동/로드 이벤트 → 중심 좌표를 Flutter로 전달
       kakao.maps.event.addListener(map, 'dragend', emitCenter);
       kakao.maps.event.addListener(map, 'tilesloaded', emitCenter);
 
-      // Flutter에 준비 완료 신호
+      // 뷰포트 준비/변경 시 bounds도 전달 (초기 1회 포함)
+      kakao.maps.event.addListener(map, 'tilesloaded', emitBounds);
+      kakao.maps.event.addListener(map, 'idle', emitBounds);
+      kakao.maps.event.addListener(map, 'zoom_changed', emitBounds);
+
       if (window.MapChannel) {
         window.MapChannel.postMessage('READY');
+        setTimeout(emitBounds, 0); // 초기 1회 보장
       }
     }
 
@@ -66,6 +71,16 @@
       window.MapChannel.postMessage(`${c.getLat()},${c.getLng()}`);
     }
 
+    function emitBounds() {
+      if (!map || !window.MapChannel) return;
+      const b = map.getBounds();
+      const sw = b.getSouthWest(); // 남서
+      const ne = b.getNorthEast(); // 북동
+      const level = map.getLevel();
+      // BOUNDS:south,west,north,east,level
+      window.MapChannel.postMessage(`BOUNDS:${sw.getLat()},${sw.getLng()},${ne.getLat()},${ne.getLng()},${level}`);
+    }
+
     // ────────────── Flutter에서 호출할 공개 함수들 ──────────────
 
     // 중심 이동
@@ -74,6 +89,15 @@
       map.setCenter(new kakao.maps.LatLng(lat, lng));
       // 이동 후 중심 재전송(선택)
       emitCenter();
+    };
+
+    window.getBounds = function() {
+      if (!map) return null;
+      const b = map.getBounds();
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      const level = map.getLevel();
+      return { south: sw.getLat(), west: sw.getLng(), north: ne.getLat(), east: ne.getLng(), level };
     };
 
     // 줌 레벨 설정 (숫자 작을수록 확대됨)
