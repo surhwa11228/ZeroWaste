@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -71,7 +72,7 @@ public class SecurityConfig {
                             response.getWriter().write(body);
                         })
                 )
-                .addFilterBefore(new LoggingFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new LoggingFilter(), LogoutFilter.class)
                 .addFilterBefore(new JwtAuthenticationFilter(jwtProvider),
                         UsernamePasswordAuthenticationFilter.class)
                 .build();
@@ -82,6 +83,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedOriginPatterns(List.of("http://192.168.45.98:*", "https://8161cbf309f3.ngrok-free.app:*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
         config.setAllowCredentials(true);
         config.setAllowedHeaders(List.of("*"));

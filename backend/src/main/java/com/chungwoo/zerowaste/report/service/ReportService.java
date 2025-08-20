@@ -157,7 +157,8 @@ public class ReportService {
                     .whereLessThanOrEqualTo("longitude", boundingBox.maxLng())
                     .whereGreaterThanOrEqualTo("latitude", boundingBox.minLat())
                     .whereLessThanOrEqualTo("latitude", boundingBox.maxLat())
-                    .limit(50);
+                    .orderBy("reportedAt", Query.Direction.DESCENDING)
+                    .limit(80);
 
             ApiFuture<QuerySnapshot> querySnapshot = query.get();
             List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();

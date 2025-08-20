@@ -85,7 +85,7 @@ public class AuthService {
 
     private void saveUserIfNew(String uid, String email) {
         Firestore firestore = FirestoreClient.getFirestore();
-        DocumentReference userRef = firestore.collection("Users").document(uid);
+        DocumentReference userRef = firestore.collection("users").document(uid);
 
         try {
             DocumentSnapshot snapshot = userRef.get().get(); // blocking get

@@ -46,6 +46,7 @@ public class StorageImageUploader implements IImageUploader {
 
     @Override
     public List<Map<String,String>> upload(String folderName, List<MultipartFile> images) {
+        if (images == null) return null;
         List<Map<String,String>> results = new ArrayList<>();
         for (MultipartFile image : images) {
             if (image != null && !image.isEmpty()) {
