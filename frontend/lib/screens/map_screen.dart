@@ -143,7 +143,8 @@ class _MapScreenState extends State<MapScreen> {
           },
         ),
       );
-    _initMapPage(); // (키 주입) map.html 로드
+    // ..loadFlutterAsset('assets/map/map.html');
+    _initMapPage();
   }
 
   Future<void> _initMapPage() async {
