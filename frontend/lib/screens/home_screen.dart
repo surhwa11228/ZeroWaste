@@ -40,18 +40,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (ok) {
       if (Platform.isAndroid) {
-        SystemNavigator.pop(); // 안드로이드: 실제 종료
+        SystemNavigator.pop();
       }
-      // iOS: 강제 종료 비권장 → 다이얼로그만 닫힘(필요 시 다른 처리 가능)
     }
-    // 우리가 처리했으니 기본 pop은 막음
     return false;
   }
 
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: _onWillPop, // ✅ 뒤로가기 가드
+      onWillPop: _onWillPop,
       child: Scaffold(
         body: IndexedStack(index: _currentIndex, children: _pages),
         bottomNavigationBar: BottomNavigationBar(

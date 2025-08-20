@@ -68,6 +68,10 @@ web/.dart_tool/
 # ✅ Firebase / 보안 관련
 # ----------------------------------
 serviceAccount.json
+*.env
+.env*
+*service-account*.json
+.secret
 
 # ----------------------------------
 # ✅ 개발 도구 관련

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' show cos, sin, asin, sqrt, pi, max;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -116,8 +117,24 @@ class _MapScreenState extends State<MapScreen> {
             }
           },
         ),
-      )
-      ..loadFlutterAsset('assets/map/map.html');
+      );
+    // ..loadFlutterAsset('assets/map/map.html');
+    _initMapPage();
+  }
+
+  Future<void> _initMapPage() async {
+    final html = await _loadMapHtmlInjected();
+    await _controller.loadHtmlString(html, baseUrl: 'assets/map/');
+  }
+
+  Future<String> _loadMapHtmlInjected() async {
+    // flutter run/build 시 --dart-define=KAKAO_JS_KEY=실제키 로 주입
+    final key = const String.fromEnvironment('KAKAO_JS_KEY', defaultValue: '');
+    var html = await rootBundle.loadString('assets/map/map.html');
+    if (key.isEmpty) {
+      debugPrint('[Kakao] KAKAO_JS_KEY 가 설정되지 않았습니다.');
+    }
+    return html.replaceFirst('__KAKAO_JS_KEY__', key);
   }
 
   // ───────────────────────── '현 지도에서 검색' 버튼 로직 ─────────────────────────
