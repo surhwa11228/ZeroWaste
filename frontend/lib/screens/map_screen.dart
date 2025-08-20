@@ -44,6 +44,11 @@ class _MapScreenState extends State<MapScreen> {
   /// 내부 fetch 진행 중 보호
   bool _fetching = false;
 
+  // ✅ 추가: 내 위치 추적 상태
+  StreamSubscription<Position>? _posSub;
+  LatLng? _myLatLng;
+  bool _followMe = true; // 드래그하면 false, '현위치' 누르면 true
+
   static const Map<WasteCategory, String> _labels = {
     WasteCategory.cigaretteButt: '담배꽁초',
     WasteCategory.generalWaste: '일반쓰레기',
@@ -67,6 +72,19 @@ class _MapScreenState extends State<MapScreen> {
             _mapReady = true;
             // 초기 진입: GPS 기준으로 지도 이동 + 1회 자동 새로고침
             unawaited(_bootstrapInitialGpsFetch());
+            // ✅ 내 위치 추적 시작 + 라벨(선택) ON
+            _startGpsTracking();
+            unawaited(
+              _controller.runJavaScript(
+                "try{setMyLocationLabelVisible && setMyLocationLabelVisible(true)}catch(e){}",
+              ),
+            );
+            return;
+          }
+
+          // ✅ 사용자가 지도 드래그 시작 → follow 해제
+          if (s == 'DRAG_START') {
+            if (_followMe) setState(() => _followMe = false);
             return;
           }
 
@@ -111,15 +129,21 @@ class _MapScreenState extends State<MapScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
-            // 페이지 로딩 완료 후 READY 이전이라면 대기
-            if (!_mapReady) {
-              // READY 이후 _bootstrapInitialGpsFetch()가 실행됨
-            }
+            // 일부 환경에서 READY를 못 받을 수 있으므로, 초기 emit을 시도(안전 호출)
+            unawaited(
+              _controller.runJavaScript(
+                'try{emitBounds && emitBounds()}catch(e){}',
+              ),
+            );
+            unawaited(
+              _controller.runJavaScript(
+                'try{emitCenter && emitCenter()}catch(e){}',
+              ),
+            );
           },
         ),
       );
-    // ..loadFlutterAsset('assets/map/map.html');
-    _initMapPage();
+    _initMapPage(); // (키 주입) map.html 로드
   }
 
   Future<void> _initMapPage() async {
@@ -210,8 +234,12 @@ class _MapScreenState extends State<MapScreen> {
 
   /// 좌하단 '현위치' 버튼: GPS로 지도 이동 + 1회 자동 새로고침
   Future<void> _moveToMyLocation() async {
-    final gps = await _tryGetGpsLatLng();
-    if (gps == null) {
+    // ✅ follow 재개
+    if (!_followMe) setState(() => _followMe = true);
+
+    // 내 위치가 이미 있으면 즉시 이동(더 빠름), 없으면 한 번 측정
+    final target = _myLatLng ?? await _tryGetGpsLatLng();
+    if (target == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('위치 권한이 필요합니다. 설정에서 허용해주세요.')),
@@ -220,10 +248,10 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    await _moveMapTo(gps);
-    await _reloadPins(center: gps, category: _filter);
+    await _moveMapTo(target);
+    await _reloadPins(center: target, category: _filter);
     setState(() {
-      _lastFetchedCenter = gps;
+      _lastFetchedCenter = target;
       _showSearchHere = false;
     });
   }
@@ -240,6 +268,48 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _lastFetchedCenter = center;
       _showSearchHere = false;
+    });
+  }
+
+  // ───────────────────────── GPS 추적(내 위치 핀 업데이트) ─────────────────────────
+
+  void _startGpsTracking() async {
+    LocationPermission perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      return; // 권한 없으면 종료
+    }
+
+    const settings = LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 10, // 10m 이동마다 업데이트
+    );
+
+    _posSub?.cancel();
+    _posSub = Geolocator.getPositionStream(locationSettings: settings).listen((
+      pos,
+    ) async {
+      _myLatLng = LatLng(pos.latitude, pos.longitude);
+
+      // JS의 upsertMyLocation(lat, lng, accuracy) 호출 (함수 없으면 무시)
+      if (_mapReady) {
+        try {
+          await _controller.runJavaScript(
+            "if (typeof upsertMyLocation==='function') "
+            "upsertMyLocation(${pos.latitude}, ${pos.longitude}, ${pos.accuracy});",
+          );
+        } catch (_) {}
+      }
+
+      // follow 모드면 지도도 함께 따라감
+      if (_followMe && _mapReady) {
+        await _controller.runJavaScript(
+          'setCenter(${pos.latitude}, ${pos.longitude});',
+        );
+      }
     });
   }
 
@@ -370,7 +440,7 @@ class _MapScreenState extends State<MapScreen> {
   double _haversineKm(double lat1, double lon1, double lat2, double lon2) {
     const R = 6371.0; // km
     final dLat = (lat2 - lat1) * pi / 180;
-    final dLon = (lon2 - lon1) * pi / 180;
+    final dLon = (lat2 - lon1) * pi / 180;
     final a =
         sin(dLat / 2) * sin(dLat / 2) +
         cos(lat1 * pi / 180) *
@@ -490,6 +560,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _posSub?.cancel(); // ✅ 추가
     _centerDebounce?.cancel();
     super.dispose();
   }
@@ -508,7 +579,7 @@ class _MapScreenState extends State<MapScreen> {
             tooltip: '새로고침',
             onPressed: () async {
               await _controller.reload();
-              // 새로고침 후 READY 수신 → _bootstrapInitialGpsFetch() 수행
+              // 새로고침 후 READY 수신 → _bootstrapInitialGpsFetch() / _startGpsTracking() 수행
             },
           ),
         ],
@@ -520,16 +591,9 @@ class _MapScreenState extends State<MapScreen> {
           // 지도(WebView)
           Positioned.fill(child: WebViewWidget(controller: _controller)),
 
-          // 중앙 고정 마커 (Flutter 오버레이) — 터치 통과
-          const IgnorePointer(
-            ignoring: true,
-            child: Align(
-              alignment: Alignment.center,
-              child: Icon(Icons.location_on, size: 48, color: Colors.red),
-            ),
-          ),
+          // ❌ 중앙 고정 마커 제거 (내 위치 핀으로 대체하므로 더 이상 필요 없음)
 
-          // 상단 중앙: '현 지도에서 검색' 버튼
+          // 하단 중앙: '현 지도에서 검색' 버튼
           Positioned(
             left: 0,
             right: 0,
@@ -559,7 +623,7 @@ class _MapScreenState extends State<MapScreen> {
 
           // 상단: 카테고리 "표시 필터"
           Positioned(
-            top: topPadding - 20,
+            top: topPadding + 12, // ✅ 안전 여백 (기존 -20 → +12)
             left: 0,
             right: 0,
             child: Center(
@@ -572,7 +636,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // 좌하단: 현재 위치로 이동
+          // 좌하단: 현재 위치로 이동 (follow 재개)
           Positioned(
             left: 15,
             bottom: 15,
