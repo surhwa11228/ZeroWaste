@@ -1,20 +1,21 @@
 # ----------------------------------
-# ✅ 공통 무시 파일
+# Common Ignore Files
 # ----------------------------------
 .DS_Store
 *.lock
 *.log
 *.tmp
 *.swp
-
+*.iml
+hs_err_pid*
+replay_pid*
 
 # ----------------------------------
-# ✅ Java / Android 관련
+# Java / Android
 # ----------------------------------
 *.class
-
-# BlueJ files
 *.ctxt
+.mtj.tmp/
 
 # Gradle
 .gradle/
@@ -25,20 +26,14 @@ tmp/
 /backend/tmp/
 
 # IntelliJ
-/backend/.idea/
 .idea/
+/backend/.idea/
 !/.idea/gradle.xml
 !/.idea/misc.xml
 /backend/!/.idea/gradle.xml
 /backend/!/.idea/misc.xml
 
-# 기타
-*.iml
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# Java Package Files
 *.jar
 *.war
 *.nar
@@ -46,12 +41,8 @@ tmp/
 *.zip
 *.tar.gz
 *.rar
-hs_err_pid*
-replay_pid*
 
-# Android Studio 및 Gradle
-*.iml
-.idea/
+# Android Studio
 android/.gradle/
 android/captures/
 android/.idea/
@@ -59,25 +50,19 @@ android/.idea/
 /android/app/profile
 /android/app/release
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# BlueJ
-*.ctxt
-
 # ----------------------------------
-# ✅ Flutter / Dart 관련
+# Flutter / Dart
 # ----------------------------------
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
 .pub/
-build/
 .melos_tool/
+build/
 generated_plugin_registrant.dart
 
-# iOS 관련
+# iOS
 ios/Flutter/Generated.xcconfig
 ios/Pods/
 ios/Runner.xcworkspace/
@@ -86,23 +71,21 @@ ios/.flutter-plugins
 ios/.flutter-plugins-dependencies
 **/ios/Flutter/.last_build_id
 
-
 # Web
 web/.dart_tool/
 
-# Flutter 문서 생성
+# Flutter Docs
 **/doc/api/
 
-# Firebase Service Account
+# Firebase / Secrets
 serviceAccount.json
 *.env
 .env*
 *service-account*.json
 .secret
 
-
 # ----------------------------------
-# ✅ 개발 도구 관련
+# Development Tools
 # ----------------------------------
 # VS Code
 .vscode/
@@ -110,14 +93,10 @@ serviceAccount.json
 # Atom
 .atom/
 
-# 기타
+# Others
 .build/
 .buildlog/
 .history
 .svn/
 .swiftpm/
 migrate_working_dir/
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
