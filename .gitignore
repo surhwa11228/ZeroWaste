@@ -7,10 +7,38 @@
 *.tmp
 *.swp
 
+
 # ----------------------------------
 # ✅ Java / Android 관련
 # ----------------------------------
 *.class
+
+# BlueJ files
+*.ctxt
+
+# Gradle
+.gradle/
+build/
+tmp/
+/backend/.gradle/
+/backend/build/
+/backend/tmp/
+
+# IntelliJ
+/backend/.idea/
+.idea/
+!/.idea/gradle.xml
+!/.idea/misc.xml
+/backend/!/.idea/gradle.xml
+/backend/!/.idea/misc.xml
+
+# 기타
+*.iml
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
 *.jar
 *.war
 *.nar
@@ -58,20 +86,20 @@ ios/.flutter-plugins
 ios/.flutter-plugins-dependencies
 **/ios/Flutter/.last_build_id
 
+
 # Web
 web/.dart_tool/
 
 # Flutter 문서 생성
 **/doc/api/
 
-# ----------------------------------
-# ✅ Firebase / 보안 관련
-# ----------------------------------
+# Firebase Service Account
 serviceAccount.json
 *.env
 .env*
 *service-account*.json
 .secret
+
 
 # ----------------------------------
 # ✅ 개발 도구 관련
@@ -89,3 +117,7 @@ serviceAccount.json
 .svn/
 .swiftpm/
 migrate_working_dir/
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
