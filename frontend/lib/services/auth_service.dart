@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 /// Firebase Auth ↔ 백엔드 토큰 교환/저장/리프레시 + 이메일 회원가입/구글 로그인 유지
 class AuthService {
   // 서버 베이스 URL (network.dart와 동일하게 맞춰 주세요)
-  static const String _base = 'https://8161cbf309f3.ngrok-free.app/api';
+  static const String _base = 'https://2f89e3a134ea.ngrok-free.app/api';
 
   // SecureStorage 키 (프로젝트 기존 키 유지)
   static const String _kAccess = 'accessToken';

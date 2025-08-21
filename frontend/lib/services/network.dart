@@ -15,7 +15,7 @@ class Network {
   /// Single Dio instance used across the app.
   final Dio dio = Dio(
     BaseOptions(
-      baseUrl: 'https://8161cbf309f3.ngrok-free.app/api',
+      baseUrl: 'https://2f89e3a134ea.ngrok-free.app/api',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 20),
       headers: const {
