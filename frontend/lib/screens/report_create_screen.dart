@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../services/report_facade.dart';
 import '../utils/waste_category_enum.dart';
@@ -153,9 +157,9 @@ class _ReportCreateScreenState extends State<ReportCreateScreen> {
       if (!mounted) return;
 
       // 성공 안내
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('제보가 등록되었습니다 (ID: ${created.documentId})')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('제보가 등록되었습니다')));
 
       // 지도화면에서 마커를 추가할 수 있도록 결과 반환
       Navigator.pop(context, {
@@ -176,10 +180,147 @@ class _ReportCreateScreenState extends State<ReportCreateScreen> {
 /// 위젯들
 /// ───────────────────────────────────────────────────────────────
 
-class _LocationCard extends StatelessWidget {
+class _LocationCard extends StatefulWidget {
   final double lat;
   final double lng;
   const _LocationCard({required this.lat, required this.lng});
+
+  @override
+  State<_LocationCard> createState() => _LocationCardState();
+}
+
+class _LocationCardState extends State<_LocationCard> {
+  String? _address; // 사람 친화 주소
+  String? _addrError; // 주소 조회 에러
+  bool _loading = true;
+
+  WebViewController? _miniMapCtrl;
+  bool _kakaoKeyMissing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveAddress();
+    _initMiniMap();
+  }
+
+  Future<void> _resolveAddress() async {
+    setState(() {
+      _loading = true;
+      _addrError = null;
+      _address = null;
+    });
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        widget.lat,
+        widget.lng,
+        localeIdentifier: 'ko_KR',
+      );
+      if (placemarks.isEmpty) {
+        setState(() {
+          _addrError = '주소를 찾지 못했습니다.';
+          _loading = false;
+        });
+        return;
+      }
+      final p = placemarks.first;
+      final parts = <String>[
+        if ((p.street ?? '').trim().isNotEmpty) p.street!,
+        if ((p.subLocality ?? '').trim().isNotEmpty) p.subLocality!,
+        if ((p.locality ?? '').trim().isNotEmpty) p.locality!,
+        if ((p.administrativeArea ?? '').trim().isNotEmpty)
+          p.administrativeArea!,
+      ];
+      setState(() {
+        _address = parts.isEmpty ? '주소 정보 없음' : parts.join(' ');
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _addrError = '주소 조회에 실패했습니다.';
+        _loading = false;
+      });
+    }
+  }
+
+  void _initMiniMap() {
+    final kakaoKey = const String.fromEnvironment(
+      'KAKAO_JS_KEY',
+      defaultValue: '',
+    );
+    if (kakaoKey.isEmpty) {
+      // 키가 없으면 지도를 생략 (주소만 표시)
+      _kakaoKeyMissing = true;
+      debugPrint('[Kakao] KAKAO_JS_KEY 가 설정되지 않았습니다.');
+      return;
+    }
+
+    final html = _buildMiniMapHtml(
+      lat: widget.lat,
+      lng: widget.lng,
+      kakaoJsKey: kakaoKey,
+    );
+
+    _miniMapCtrl = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..loadHtmlString(html, baseUrl: 'about:blank');
+  }
+
+  String _buildMiniMapHtml({
+    required double lat,
+    required double lng,
+    required String kakaoJsKey,
+  }) {
+    // 드래그/줌 비활성화 + 단일 마커만
+    return '''
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; }
+  #map { width:100%; height:100%; }
+</style>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=$kakaoJsKey"></script>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    (function() {
+      var container = document.getElementById('map');
+      var center = new kakao.maps.LatLng($lat, $lng);
+      var map = new kakao.maps.Map(container, {
+        center: center,
+        level: 3
+      });
+      // 인터랙션 제거(인라인 미니맵)
+      map.setDraggable(false);
+      map.setZoomable(false);
+
+      var marker = new kakao.maps.Marker({ position: center });
+      marker.setMap(map);
+    })();
+  </script>
+</body>
+</html>
+''';
+  }
+
+  Future<void> _openInMaps() async {
+    // geo: 스킴 → 실패 시 구글맵 웹
+    final geoUri = Uri.parse(
+      'geo:${widget.lat},${widget.lng}?q=${widget.lat},${widget.lng}(ZeroWaste)',
+    );
+    if (await canLaunchUrl(geoUri)) {
+      await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    final webUri = Uri.parse(
+      'https://maps.google.com/?q=${widget.lat},${widget.lng}',
+    );
+    await launchUrl(webUri, mode: LaunchMode.externalApplication);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,31 +329,64 @@ class _LocationCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.all(10),
-              child: const Icon(Icons.location_on, color: Colors.red),
+            // 타이틀
+            const Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.red),
+                SizedBox(width: 8),
+                Text(
+                  '선택한 지도 위치',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '선택한 지도 위치',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}',
-                    style: const TextStyle(color: Colors.black87, fontSize: 13),
-                  ),
-                ],
+            const SizedBox(height: 8),
+
+            // 주소 (좌표는 삭제)
+            if (_loading)
+              const Text('주소 확인 중...', style: TextStyle(fontSize: 12))
+            else if (_addrError != null)
+              Text(
+                _addrError!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              )
+            else
+              Text(
+                _address ?? '',
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 13,
+                  height: 1.25,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+
+            const SizedBox(height: 10),
+
+            // 인라인 카카오 미니맵 (키 없으면 생략)
+            if (!_kakaoKeyMissing && _miniMapCtrl != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  height: 180, // 카드 안에서 적절한 고정 높이
+                  width: double.infinity,
+                  child: WebViewWidget(controller: _miniMapCtrl!),
+                ),
+              ),
+
+            const SizedBox(height: 8),
+
+            // 액션: 지도 앱 열기 (복사/새로고침 제거)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _openInMaps,
+                icon: const Icon(Icons.map_outlined, size: 18),
+                label: const Text('지도 앱으로 열기'),
               ),
             ),
           ],
