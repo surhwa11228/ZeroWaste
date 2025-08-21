@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZeroWaste Map</title>
+
+  <style>
+    html, body {
+      width: 100vw; height: 100vh;
+      margin: 0; padding: 0; overflow: hidden;
+      background: #fff;
+    }
+    /* 지도가 전체 화면을 덮도록 고정 */
+    #map {
+      position: fixed; inset: 0;
+      width: 100vw; height: 100vh;
+      display: block; max-width: none !important;
+      z-index: 0;
+    }
+    /* 혹시 외부 스타일의 max-width 영향 차단 */
+    img, svg, canvas { max-width: none !important; }
+
+    /* (옵션) 내 위치 라벨 스타일 */
+    .myloc-label {
+      padding: 2px 6px;
+      background: #4C89FF;
+      color: #fff;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 16px;
+      white-space: nowrap;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    }
+  </style>
+
+  <!-- 카카오 지도 SDK: YOUR_KAKAO_APP_KEY를 실제 앱키로 교체 -->
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=__KAKAO_JS_KEY__&libraries=services"></script>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    let map;
+
+    // Flutter에서 추가한 마커 보관 (필터에 사용) — 형식: { marker, category }
+    const markers = [];
+
+    // 카테고리 → 색상 매핑
+    const CATEGORY_COLORS = {
+      'CIGARETTE_BUTT': '#e53935', // 빨강
+      'GENERAL_WASTE' : '#1e88e5', // 파랑
+      'FOOD_WASTE'    : '#43a047', // 초록
+      'OTHERS'        : '#6d4c41', // 브라운
+    };
+
+    // ─────────────────── 내 위치(사용자 GPS) 표시 구성 ───────────────────
+    const MY_COLOR = '#4C89FF';
+    let myMarker = null;      // 파란 점
+    let myCircle = null;      // 정확도 원
+    let myLabel = null;       // '내 위치' 라벨(옵션)
+    let myLabelVisible = false; // 기본 비표시
+
+    // Flutter -> JS: 내 위치 마커/정확도/라벨을 생성 또는 업데이트
+    // acc: 정확도(m). 제공 안되면 30으로 처리.
+    window.upsertMyLocation = function(lat, lng, acc) {
+      if (!map) return;
+      const pos = new kakao.maps.LatLng(Number(lat), Number(lng));
+      const radius = Math.max(20, Number(acc || 30));
+
+      // 1) 파란 점(마커) 생성/이동 — 고가독성 원형 SVG 사용
+      const svg = `
+        <svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="11" cy="11" r="9" fill="${MY_COLOR}" stroke="white" stroke-width="3"/>
+        </svg>
+      `;
+      const img = new kakao.maps.MarkerImage(
+        'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+        new kakao.maps.Size(22, 22),
+        { offset: new kakao.maps.Point(11, 11) }
+      );
+
+      if (!myMarker) {
+        myMarker = new kakao.maps.Marker({ position: pos, image: img, zIndex: 999 });
+        myMarker.setMap(map);
+      } else {
+        myMarker.setImage(img);
+        myMarker.setPosition(pos);
+      }
+
+      // 2) 정확도 원 생성/업데이트
+      if (!myCircle) {
+        myCircle = new kakao.maps.Circle({
+          center: pos,
+          radius: radius,
+          strokeWeight: 1,
+          strokeColor: MY_COLOR,
+          strokeOpacity: 0.6,
+          fillColor: MY_COLOR,
+          fillOpacity: 0.15,
+          zIndex: 998,
+        });
+        myCircle.setMap(map);
+      } else {
+        myCircle.setPosition(pos);
+        myCircle.setRadius(radius);
+      }
+
+      // 3) (옵션) '내 위치' 라벨
+      if (myLabelVisible) {
+        if (!myLabel) {
+          myLabel = new kakao.maps.CustomOverlay({
+            position: pos,
+            yAnchor: 1.6,  // 마커 아래쪽에 배치
+            zIndex: 1000,
+            content: '<div class="myloc-label">내 위치</div>',
+          });
+          myLabel.setMap(map);
+        } else {
+          myLabel.setPosition(pos);
+          if (!myLabel.getMap()) myLabel.setMap(map);
+        }
+      } else if (myLabel && myLabel.getMap()) {
+        myLabel.setMap(null);
+      }
+    };
+
+    // 라벨 표시 토글 (Flutter에서 필요 시 호출)
+    window.setMyLocationLabelVisible = function(visible) {
+      myLabelVisible = !!visible;
+      if (myLabel) myLabel.setMap(visible ? map : null);
+    };
+
+    // 내 위치 표시 제거(선택)
+    window.removeMyLocation = function() {
+      if (myMarker) { myMarker.setMap(null); myMarker = null; }
+      if (myCircle) { myCircle.setMap(null); myCircle = null; }
+      if (myLabel)  { myLabel.setMap(null);  myLabel  = null; }
+    };
+
+    // ─────────────────── 지도 초기화/이벤트 ───────────────────
+    function init() {
+      const container = document.getElementById('map');
+      map = new kakao.maps.Map(container, {
+        center: new kakao.maps.LatLng(37.566535, 126.9779692), // 초기 임시 중심(서울 시청)
+        level: 3
+      });
+
+      // 지도 이동/로드 이벤트 → 중심 좌표를 Flutter로 전달
+      kakao.maps.event.addListener(map, 'dragend', emitCenter);
+      kakao.maps.event.addListener(map, 'tilesloaded', emitCenter);
+
+      // 뷰포트 준비/변경 시 bounds도 전달 (초기 1회 포함)
+      kakao.maps.event.addListener(map, 'tilesloaded', emitBounds);
+      kakao.maps.event.addListener(map, 'idle', emitBounds);
+      kakao.maps.event.addListener(map, 'zoom_changed', emitBounds);
+
+      // (중요) 사용자가 손으로 드래그 시작 → Flutter에 알려 follow 해제 용도
+      kakao.maps.event.addListener(map, 'dragstart', function () {
+        if (window.MapChannel) window.MapChannel.postMessage('DRAG_START');
+      });
+      //CENTER:
+      kakao.maps.event.addListener(map, 'idle', emitCenter);
+      kakao.maps.event.addListener(map, 'zoom_changed', emitCenter); 
+
+      if (window.MapChannel) {
+        window.MapChannel.postMessage('READY');
+        setTimeout(emitBounds, 0); // 초기 1회 보장
+      }
+    }
+
+    // 현재 중심 좌표를 "lat,lng" 문자열로 Flutter에 전송
+    function emitCenter() {
+      if (!map || !window.MapChannel) return;
+      const c = map.getCenter();
+      window.MapChannel.postMessage(`CENTER:${c.getLat()},${c.getLng()}`); // (Flutter 쪽에서 CENTER: 접두어 없이도 처리)
+    }
+
+    function emitBounds() {
+      if (!map || !window.MapChannel) return;
+      const b = map.getBounds();
+      const sw = b.getSouthWest(); // 남서
+      const ne = b.getNorthEast(); // 북동
+      const level = map.getLevel();
+      // BOUNDS:south,west,north,east,level
+      window.MapChannel.postMessage(`BOUNDS:${sw.getLat()},${sw.getLng()},${ne.getLat()},${ne.getLng()},${level}`);
+    }
+
+    // ────────────── Flutter에서 호출할 공개 함수들 ──────────────
+
+    // 중심 이동
+    window.setCenter = function(lat, lng) {
+      if (!map) return;
+      map.setCenter(new kakao.maps.LatLng(lat, lng));
+      // 이동 후 중심 재전송(선택)
+      emitCenter();
+    };
+
+    window.getBounds = function() {
+      if (!map) return null;
+      const b = map.getBounds();
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      const level = map.getLevel();
+      return { south: sw.getLat(), west: sw.getLng(), north: ne.getLat(), east: ne.getLng(), level };
+    };
+
+    // 줌 레벨 설정 (숫자 작을수록 확대됨)
+    window.setZoomLevel = function(level) {
+      if (!map) return;
+      map.setLevel(Number(level));
+    };
+
+    // 마커 추가 (카테고리별 색상 원형 SVG)
+    window.addMarker = function(lat, lng, category) {
+      if (!map) return;
+
+      const color = CATEGORY_COLORS[category] || '#ff5252';
+      const svg = `
+        <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="14" cy="14" r="10" fill="${color}" stroke="white" stroke-width="2"/>
+        </svg>
+      `;
+      const markerImage = new kakao.maps.MarkerImage(
+        'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+        new kakao.maps.Size(28, 28),
+        { offset: new kakao.maps.Point(14, 14) } // 중심 정렬
+      );
+
+      const marker = new kakao.maps.Marker({
+        position: new kakao.maps.LatLng(lat, lng),
+        image: markerImage,
+        map,
+      });
+
+      markers.push({ marker, category });
+
+      // (디버그) 추가 확인 로그를 Flutter로
+      if (window.MapChannel) {
+        window.MapChannel.postMessage(`ADDED:${lat},${lng},${category},count=${markers.length}`);
+      }
+    };
+
+    // 카테고리 필터: null/undefined 이면 전체 표시
+    window.filterByCategory = function(categoryOrNull) {
+      markers.forEach(({ marker, category }) => {
+        const show = !categoryOrNull || category === categoryOrNull;
+        marker.setMap(show ? map : null);
+      });
+    };
+
+    // 모든 마커 제거
+    window.clearMarkers = function() {
+      markers.forEach(({ marker }) => marker.setMap(null));
+      markers.length = 0;
+    };
+
+    // ──────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
