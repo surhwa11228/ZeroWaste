@@ -335,7 +335,7 @@ class _LocationCardState extends State<_LocationCard> {
                 Icon(Icons.location_on, color: Colors.red),
                 SizedBox(width: 8),
                 Text(
-                  '선택한 지도 위치',
+                  '제보 위치(현 위치)',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                 ),
               ],

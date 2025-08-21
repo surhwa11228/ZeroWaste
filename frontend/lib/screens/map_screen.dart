@@ -520,33 +520,45 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _onReport() async {
-    if (_currentCenter == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('지도의 중앙 위치를 정해주세요.')));
+    // 1) 내 GPS 좌표 확보(스트림에서 최신값이 있으면 그걸, 없으면 1회 측정)
+    final gps = _myLatLng ?? await _tryGetGpsLatLng();
+    if (gps == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('현재 위치를 가져올 수 없습니다. 설정에서 위치 권한을 허용해 주세요.'),
+          ),
+        );
+      }
       return;
     }
 
+    // (선택) 화면도 GPS로 잠깐 이동시키고 싶다면 주석 해제
+    // await _moveMapTo(gps);
+
+    // 2) 제보 작성 화면에 'GPS 좌표'를 넘김
     final result = await Navigator.pushNamed(
       context,
       '/report/create',
-      arguments: {'lat': _currentCenter!.lat, 'lng': _currentCenter!.lng},
+      arguments: {
+        'lat': gps.lat,
+        'lng': gps.lng,
+        'source': 'gps', // (선택) 디버깅용 태그
+      },
     );
 
-    // 제보 성공 시: 반환값으로 넘어온 좌표/카테고리로 JS의 addMarker 호출
+    // 3) 성공 시: 반환 좌표(= GPS)에 마커 추가
     if (result is Map && result['ok'] == true) {
       final double lat = (result['lat'] as num).toDouble();
       final double lng = (result['lng'] as num).toDouble();
-      final String categoryApi =
-          result['category'] as String; // e.g. "CIGARETTE_BUTT"
+      final String categoryApi = result['category'] as String;
 
       if (!_mapReady) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
-
       await _controller.runJavaScript("addMarker($lat, $lng, '$categoryApi');");
 
-      // 필터 때문에 방금 추가한 마커가 숨겨지지 않도록, 동일 카테고리로 필터하거나 전체로 풀기
+      // 필터 때문에 방금 추가한 마커가 숨지지 않게 동기화
       if (_filter != null && _filter!.api != categoryApi) {
         setState(() => _filter = WasteCategoryCodec.fromApi(categoryApi));
         await _applyFilterToWebView();
