@@ -296,9 +296,32 @@ class _MapScreenState extends State<MapScreen> {
       return; // 권한 없으면 종료
     }
 
+    // 0) 최초 1회 즉시 표기 (움직이지 않아도 파란 점 보이게)
+    try {
+      final first = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+      );
+      _myLatLng = LatLng(first.latitude, first.longitude);
+
+      if (_mapReady) {
+        await _controller.runJavaScript(
+          "if (typeof upsertMyLocation==='function') "
+          "upsertMyLocation(${first.latitude}, ${first.longitude}, ${first.accuracy});",
+        );
+        if (_followMe) {
+          await _controller.runJavaScript(
+            "setCenter(${first.latitude}, ${first.longitude});",
+          );
+        }
+      }
+    } catch (_) {
+      // 초기 1회 측정 실패는 무시(권한/센서 오류 등)
+    }
+
+    // ✅ 1) 이후엔 스트림으로 계속 갱신
     const settings = LocationSettings(
       accuracy: LocationAccuracy.best,
-      distanceFilter: 10, // 10m 이동마다 업데이트
+      distanceFilter: 3,
     );
 
     _posSub?.cancel();
@@ -307,7 +330,6 @@ class _MapScreenState extends State<MapScreen> {
     ) async {
       _myLatLng = LatLng(pos.latitude, pos.longitude);
 
-      // JS의 upsertMyLocation(lat, lng, accuracy) 호출 (함수 없으면 무시)
       if (_mapReady) {
         try {
           await _controller.runJavaScript(
@@ -317,16 +339,15 @@ class _MapScreenState extends State<MapScreen> {
         } catch (_) {}
       }
 
-      // follow 모드면 지도도 함께 따라감 (너무 잦은 재중심 방지용 거리 체크)
+      // follow 모드면 지도도 함께 따라감(너무 잦은 이동 방지)
       if (_followMe && _mapReady) {
         final c = _currentCenter;
         final dist = (c == null)
             ? double.infinity
             : _haversineMeters(c.lat, c.lng, pos.latitude, pos.longitude);
-        if (dist > 15) {
-          // 15m 이상 차이날 때만 이동
+        if (dist > 3) {
           await _controller.runJavaScript(
-            'setCenter(${pos.latitude}, ${pos.longitude});',
+            "setCenter(${pos.latitude}, ${pos.longitude});",
           );
         }
       }
