@@ -6,9 +6,9 @@ spring:
 
 firebase:
   store:
-    DB: zerowaste
+    DB: ${FIREBASE_DB} #example
   storage:
-    bucket: zerowaste-ccae3.firebasestorage.app
+    bucket: ${FIREBASE_BUCKET} #example-abcd.firebasestorage.app
 
 jwt:
   secret: ${JWT_SECRET}
