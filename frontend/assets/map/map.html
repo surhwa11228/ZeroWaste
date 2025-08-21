@@ -159,6 +159,9 @@
       kakao.maps.event.addListener(map, 'dragstart', function () {
         if (window.MapChannel) window.MapChannel.postMessage('DRAG_START');
       });
+      //CENTER:
+      kakao.maps.event.addListener(map, 'idle', emitCenter);
+      kakao.maps.event.addListener(map, 'zoom_changed', emitCenter); 
 
       if (window.MapChannel) {
         window.MapChannel.postMessage('READY');
@@ -170,7 +173,7 @@
     function emitCenter() {
       if (!map || !window.MapChannel) return;
       const c = map.getCenter();
-      window.MapChannel.postMessage(`${c.getLat()},${c.getLng()}`); // (Flutter 쪽에서 CENTER: 접두어 없이도 처리)
+      window.MapChannel.postMessage(`CENTER:${c.getLat()},${c.getLng()}`); // (Flutter 쪽에서 CENTER: 접두어 없이도 처리)
     }
 
     function emitBounds() {

@@ -44,7 +44,7 @@ class _MapScreenState extends State<MapScreen> {
   /// 내부 fetch 진행 중 보호
   bool _fetching = false;
 
-  // ✅ 추가: 내 위치 추적 상태
+  // 내 위치 추적 상태
   StreamSubscription<Position>? _posSub;
   LatLng? _myLatLng;
   bool _followMe = true; // 드래그하면 false, '현위치' 누르면 true
@@ -72,7 +72,7 @@ class _MapScreenState extends State<MapScreen> {
             _mapReady = true;
             // 초기 진입: GPS 기준으로 지도 이동 + 1회 자동 새로고침
             unawaited(_bootstrapInitialGpsFetch());
-            // ✅ 내 위치 추적 시작 + 라벨(선택) ON
+            // 내 위치 추적 시작 + 라벨(선택) ON
             _startGpsTracking();
             unawaited(
               _controller.runJavaScript(
@@ -82,7 +82,7 @@ class _MapScreenState extends State<MapScreen> {
             return;
           }
 
-          // ✅ 사용자가 지도 드래그 시작 → follow 해제
+          // 사용자가 지도 드래그 시작 → follow 해제
           if (s == 'DRAG_START') {
             if (_followMe) setState(() => _followMe = false);
             return;
@@ -120,7 +120,10 @@ class _MapScreenState extends State<MapScreen> {
             final lat = double.tryParse(parts[0]);
             final lng = double.tryParse(parts[1]);
             if (lat != null && lng != null) {
-              _currentCenter = LatLng(lat, lng);
+              setState(() {
+                // ✅ UI/상태 동기화 보장
+                _currentCenter = LatLng(lat, lng);
+              });
               _scheduleCenterCheck(); // 버튼 노출 여부 재평가
             }
           }
@@ -143,13 +146,13 @@ class _MapScreenState extends State<MapScreen> {
           },
         ),
       );
-    // ..loadFlutterAsset('assets/map/map.html');
-    _initMapPage();
+    _initMapPage(); // (키 주입) map.html 로드
   }
 
   Future<void> _initMapPage() async {
     final html = await _loadMapHtmlInjected();
-    await _controller.loadHtmlString(html, baseUrl: 'assets/map/');
+    // 더 안정적인 baseUrl
+    await _controller.loadHtmlString(html, baseUrl: 'about:blank');
   }
 
   Future<String> _loadMapHtmlInjected() async {
@@ -175,9 +178,7 @@ class _MapScreenState extends State<MapScreen> {
   void _updateSearchHereState() {
     // 아직 한 번도 fetch하지 않았다면 버튼은 숨김(초기/GPS/카테고리에서 자동 fetch가 들어옴)
     if (_currentCenter == null || _lastFetchedCenter == null) {
-      if (_showSearchHere) {
-        setState(() => _showSearchHere = false);
-      }
+      if (_showSearchHere) setState(() => _showSearchHere = false);
       return;
     }
 
@@ -196,13 +197,24 @@ class _MapScreenState extends State<MapScreen> {
     if (shouldShow != _showSearchHere) {
       setState(() => _showSearchHere = shouldShow);
     }
+    // ✅ 사용자가 충분히 움직였으면 자동으로 follow 해제(GPS가 다시 끌어오지 않게)
+    if (shouldShow && _followMe) {
+      setState(() => _followMe = false);
+    }
   }
 
   Future<void> _onSearchHerePressed() async {
-    if (_currentCenter == null) return;
-    await _reloadPins(center: _currentCenter!, category: _filter);
+    // 지금 보이는 화면의 중심을 JS에서 직접 읽기(가장 신뢰도 높음)
+    final center =
+        await _getViewportCenterViaJs() ?? _currentCenter ?? _lastFetchedCenter;
+    if (center == null) return;
+
+    // 사용자가 "현 지도에서 검색"을 눌렀으면, 잠시 follow를 끕니다
+    if (_followMe) setState(() => _followMe = false);
+
+    await _reloadPins(center: center, category: _filter);
     setState(() {
-      _lastFetchedCenter = _currentCenter;
+      _lastFetchedCenter = center;
       _showSearchHere = false;
     });
   }
@@ -235,7 +247,7 @@ class _MapScreenState extends State<MapScreen> {
 
   /// 좌하단 '현위치' 버튼: GPS로 지도 이동 + 1회 자동 새로고침
   Future<void> _moveToMyLocation() async {
-    // ✅ follow 재개
+    // follow 재개
     if (!_followMe) setState(() => _followMe = true);
 
     // 내 위치가 이미 있으면 즉시 이동(더 빠름), 없으면 한 번 측정
@@ -305,11 +317,18 @@ class _MapScreenState extends State<MapScreen> {
         } catch (_) {}
       }
 
-      // follow 모드면 지도도 함께 따라감
+      // follow 모드면 지도도 함께 따라감 (너무 잦은 재중심 방지용 거리 체크)
       if (_followMe && _mapReady) {
-        await _controller.runJavaScript(
-          'setCenter(${pos.latitude}, ${pos.longitude});',
-        );
+        final c = _currentCenter;
+        final dist = (c == null)
+            ? double.infinity
+            : _haversineMeters(c.lat, c.lng, pos.latitude, pos.longitude);
+        if (dist > 15) {
+          // 15m 이상 차이날 때만 이동
+          await _controller.runJavaScript(
+            'setCenter(${pos.latitude}, ${pos.longitude});',
+          );
+        }
       }
     });
   }
@@ -437,11 +456,11 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  // 하버사인 (km)
+  // 하버사인 (km) — ✅ 경도 차이 계산 버그 수정 (lon2 - lon1)
   double _haversineKm(double lat1, double lon1, double lat2, double lon2) {
     const R = 6371.0; // km
     final dLat = (lat2 - lat1) * pi / 180;
-    final dLon = (lat2 - lon1) * pi / 180;
+    final dLon = (lon2 - lon1) * pi / 180; // ← fix
     final a =
         sin(dLat / 2) * sin(dLat / 2) +
         cos(lat1 * pi / 180) *
@@ -561,7 +580,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
-    _posSub?.cancel(); // ✅ 추가
+    _posSub?.cancel();
     _centerDebounce?.cancel();
     super.dispose();
   }
@@ -591,8 +610,6 @@ class _MapScreenState extends State<MapScreen> {
         children: [
           // 지도(WebView)
           Positioned.fill(child: WebViewWidget(controller: _controller)),
-
-          // ❌ 중앙 고정 마커 제거 (내 위치 핀으로 대체하므로 더 이상 필요 없음)
 
           // 하단 중앙: '현 지도에서 검색' 버튼
           Positioned(
@@ -624,7 +641,7 @@ class _MapScreenState extends State<MapScreen> {
 
           // 상단: 카테고리 "표시 필터"
           Positioned(
-            top: topPadding + 12, // ✅ 안전 여백 (기존 -20 → +12)
+            top: topPadding - 20,
             left: 0,
             right: 0,
             child: Center(
