@@ -308,16 +308,13 @@ class _LocationCardState extends State<_LocationCard> {
   }
 
   Future<void> _openInMaps() async {
-    // geo: 스킴 → 실패 시 구글맵 웹
-    final geoUri = Uri.parse(
-      'geo:${widget.lat},${widget.lng}?q=${widget.lat},${widget.lng}(ZeroWaste)',
-    );
-    if (await canLaunchUrl(geoUri)) {
-      await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+    final appUri = Uri.parse('kakaomap://look?p=${widget.lat},${widget.lng}');
+    if (await canLaunchUrl(appUri)) {
+      await launchUrl(appUri, mode: LaunchMode.externalApplication);
       return;
     }
     final webUri = Uri.parse(
-      'https://maps.google.com/?q=${widget.lat},${widget.lng}',
+      'https://map.kakao.com/link/map/${widget.lat},${widget.lng}',
     );
     await launchUrl(webUri, mode: LaunchMode.externalApplication);
   }
