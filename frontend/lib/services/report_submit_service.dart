@@ -1,9 +1,5 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:flutter_project/models/report_models.dart';
 import 'package:flutter_project/utils/api_enveloper.dart';
-import 'package:http_parser/http_parser.dart';
-import 'package:mime/mime.dart';
 import 'package:flutter_project/services/network.dart';
 
 class ReportService {

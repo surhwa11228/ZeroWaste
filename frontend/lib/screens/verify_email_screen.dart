@@ -25,7 +25,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   void _startCooldown() {
     _timer?.cancel();
-    setState(() => _cooldown = 60);
+    setState(() => _cooldown = 5);
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       if (_cooldown <= 1) {
@@ -37,12 +37,34 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     });
   }
 
+  // ▼ 재전송 에러 메시지 실서비스화
+  String _mapResendError(Object e) {
+    if (e is FirebaseAuthException) {
+      switch (e.code) {
+        case 'network-request-failed':
+          return '네트워크 연결에 문제가 있어요. 잠시 후 다시 시도해 주세요.';
+        case 'too-many-requests':
+          return '요청이 너무 많아요. 잠시 후 다시 시도해 주세요.';
+        case 'requires-recent-login':
+          return '보안을 위해 다시 로그인 후 시도해 주세요.';
+        default:
+          return '메일 재전송에 실패했어요. 잠시 후 다시 시도해 주세요. (코드: ${e.code})';
+      }
+    }
+    final msg = e.toString();
+    if (msg.contains('timeout')) {
+      return '요청이 지연되고 있어요. 네트워크 상태를 확인해 주세요.';
+    }
+    return '메일 재전송에 실패했어요. 잠시 후 다시 시도해 주세요.';
+  }
+
   Future<void> _resend() async {
     if (_cooldown > 0) return;
     setState(() => _isSending = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('로그인이 필요합니다.');
+
       await user.sendEmailVerification(
         ActionCodeSettings(
           url:
@@ -50,15 +72,23 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           handleCodeInApp: false,
         ),
       );
+
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('인증 메일을 다시 보냈습니다.')));
+      // 성공 메시지 + “메일 앱 열기” 액션 통일
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.'),
+          action: SnackBarAction(label: '메일 앱 열기', onPressed: _openMailApp),
+        ),
+      );
       _startCooldown();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('재전송 실패: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(_mapResendError(e)),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -73,14 +103,13 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           FirebaseAuth.instance.currentUser?.emailVerified ?? false;
       if (!mounted) return;
       if (verified) {
-        // 인증 완료 → 로그인 화면로 돌아가 로그인 진행 or 홈으로 바로 이동
         Navigator.pushReplacementNamed(context, '/login');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('이메일 인증이 완료되었습니다. 로그인해 주세요.')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('아직 인증되지 않았습니다. 메일의 링크를 눌러 주세요.')),
+          const SnackBar(content: Text('아직 인증되지 않았어요. 메일의 링크를 눌러 주세요.')),
         );
       }
     } finally {
@@ -89,22 +118,20 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   }
 
   Future<void> _openMailApp() async {
-    // 메일 앱 여는 건 플랫폼별 제약이 있어서 보장되진 않음.
-    // 아래는 일반적 시도들(성공 못할 수도 있음).
     final candidates = [
-      Uri.parse('mailto:'), // compose 로 열릴 수 있음
+      Uri.parse('mailto:'), // 기본 메일 작성
       Uri.parse('message://'), // iOS Mail
       Uri.parse('googlegmail://'), // Gmail
     ];
     for (final uri in candidates) {
       if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
         return;
       }
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('메일 앱을 열 수 없습니다. 브라우저에서 메일을 확인해 주세요.')),
+      const SnackBar(content: Text('메일 앱을 열 수 없어요. 브라우저에서 메일을 확인해 주세요.')),
     );
   }
 
@@ -112,6 +139,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   Widget build(BuildContext context) {
     final email =
         widget.email ?? FirebaseAuth.instance.currentUser?.email ?? '';
+    final tt = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(title: const Text('이메일 인증')),
       body: SafeArea(
@@ -120,28 +149,36 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 긴 제목도 안전
               Text(
                 '인증 메일을 보냈어요',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: tt.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 12),
-              Text(
+
+              // 이메일은 복사하기 편하게
+              SelectableText(
                 '아래 주소로 전송된 메일의 링크를 눌러 인증을 완료해 주세요.\n$email',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: tt.bodyMedium,
               ),
+
               const SizedBox(height: 24),
-              Row(
+
+              // ▼ 버튼 가로폭 좁을 때 자동 줄바꿈(텍스트 오버플로우 해결)
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
                 children: [
-                  ElevatedButton.icon(
+                  OutlinedButton.icon(
                     onPressed: _isSending || _cooldown > 0 ? null : _resend,
                     icon: const Icon(Icons.refresh),
                     label: Text(
-                      _cooldown > 0 ? '재전송 (${_cooldown}s)' : '인증 메일 다시 보내기',
+                      _cooldown > 0 ? '재전송 (${_cooldown}s)' : '인증 메일 재전송',
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 12),
                   OutlinedButton.icon(
                     onPressed: _openMailApp,
                     icon: const Icon(Icons.mail),
@@ -149,7 +186,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 24),
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -163,10 +202,11 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                       : const Text('인증 완료'),
                 ),
               ),
+
               const Spacer(),
               Text(
                 'TIP) 스팸함/프로모션함도 확인해 보세요. 링크는 일정 시간이 지나면 만료될 수 있습니다.',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: tt.bodySmall,
               ),
             ],
           ),
