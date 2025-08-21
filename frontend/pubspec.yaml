@@ -1,0 +1,43 @@
+name: flutter_project
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_svg: ^2.2.0
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.0.0
+  google_sign_in: ^5.4.4
+  http: ^1.2.0
+  flutter_secure_storage: ^9.2.2
+  webview_flutter: ^4.8.0
+  geolocator: ^13.0.1
+  dio: ^5.4.0
+  http_parser: ^4.0.2
+  mime: ^1.0.5
+  image_picker: ^1.0.7
+  # firebase_dynamic_links: ^6.0.9
+  url_launcher: ^6.3.0
+  fluttertoast: ^8.2.4
+  geocoding: ^2.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - assets/illustration/eco_city.svg
+    - assets/map/map.html
